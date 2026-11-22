@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="el">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=yes">
+  <meta name="theme-color" content="#0b1120">
+  <meta name="color-scheme" content="dark">
+  <meta name="description" content="Ιδιωτική προβολή του Crypto Portfolio Monitor από το κινητό, με κλειστό υπολογιστή.">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' https://api.github.com; img-src 'self' data:; style-src 'self'; script-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icon-192.png">
+  <link rel="apple-touch-icon" href="./assets/icon-192.png">
+  <link rel="stylesheet" href="./styles.css?v=13.3">
+  <title>Crypto Portfolio — Cloud</title>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="mark">C<span>↗</span></div>
+        <div><strong>CRYPTO <span>PORTFOLIO</span></strong><small>CLOUD MONITOR · PERSONAL</small></div>
+      </div>
+      <div class="top-actions"><span class="top-status" id="status"><i></i> Αποσυνδεδεμένο</span><button id="refresh" class="icon-btn" type="button" aria-label="Ανανέωση τιμών" title="Ανανέωση τιμών"><span aria-hidden="true">↻</span> Τιμές</button><button id="lock" class="icon-btn" type="button" title="Έξοδος" aria-label="Έξοδος"><span aria-hidden="true">⏻</span> Έξοδος</button></div>
+    </header>
+
+    <main id="dashboard" hidden>
+      <section class="headline">
+        <div><p class="eyebrow">MY PORTFOLIO / OVERVIEW</p><h1>Το χαρτοφυλάκιό μου</h1><p class="muted last-updated" id="last-updated">—</p></div>
+        <div class="currency-switch" role="group" aria-label="Νόμισμα"><button type="button" id="usd-btn" class="active">USD</button><button type="button" id="eur-btn">EUR</button></div>
+      </section>
+      <section class="hero-grid">
+        <article class="hero-total"><div class="eyebrow">ΣΥΝΟΛΙΚΗ ΑΞΙΑ</div><div class="hero-number" id="total">—</div><div class="hero-meta"><span id="total-change" class="movement">—</span><span class="hint">σε σχέση με τη βάση αναφοράς</span></div><div class="glow"></div></article>
+        <div class="side-metrics"><article class="metric"><div class="eyebrow">ΜΕΤΑΒΟΛΗ 24ΩΡΟΥ <span class="info">≈</span></div><strong id="daily-change">—</strong><small>Εκτίμηση από τιμές 24h</small></article><article class="metric"><div class="eyebrow">ΚΑΤΑΧΩΡΙΣΜΕΝΑ COINS</div><strong id="coin-count">—</strong><small id="source">GitHub Cloud · CoinGecko</small></article></div>
+      </section>
+      <section class="panel chart-panel">
+        <div class="section-head"><div><p class="eyebrow">PORTFOLIO PERFORMANCE</p><h2>Ιστορικό αποτίμησης</h2></div><div class="legend"><span class="legend-dot"></span> <span id="chart-currency">USD</span></div></div>
+        <div class="chart-controls" role="group" aria-label="Χρονικό διάστημα γραφήματος">
+          <button class="range-btn" data-chart-days="1" type="button">24 ώρες</button>
+          <button class="range-btn active" data-chart-days="7" type="button">7 ημέρες</button>
+          <button class="range-btn" data-chart-days="30" type="button">30 ημέρες</button>
+          <button class="range-btn" data-chart-days="0" type="button">Όλα</button>
+          <button id="chart-zoom-out" class="range-btn zoom-btn" type="button" title="Zoom out">−</button>
+          <button id="chart-zoom-in" class="range-btn zoom-btn" type="button" title="Zoom in">+</button>
+          <button id="chart-reset" class="range-btn" type="button" title="Επαναφορά μεγέθυνσης">Επαναφορά</button>
+        </div>
+        <div id="chart-detail" class="chart-detail">Επίλεξε χρονικό διάστημα. Στο γράφημα κάνε zoom με δύο δάχτυλα ή με τα +/−.</div>
+        <div id="chart-stats" class="chart-stats" aria-live="polite"></div>
+        <div class="chart-wrap" id="chart-wrap"><canvas id="history-chart" aria-label="Ιστορικό πραγματικών αποτιμήσεων" role="img"></canvas><div id="chart-tooltip" class="chart-tooltip" hidden></div><div class="chart-placeholder" id="chart-placeholder">Το ιστορικό δημιουργείται από τις πραγματικές cloud ενημερώσεις.</div></div>
+        <div class="chart-foot"><span id="chart-range">Μόνο πραγματικές καταγραφές</span><span>Ημερομηνία · ώρα · USD / EUR · μεταβολή</span></div>
+      </section>
+      <section class="panel coins-panel">
+        <div class="section-head coins-head"><div><p class="eyebrow">HOLDINGS</p><h2>Τα νομίσματά μου <span id="small-count" class="count">—</span></h2></div><div class="table-controls"><input id="search" type="search" placeholder="Αναζήτηση coin" aria-label="Αναζήτηση νομίσματος" autocomplete="off"><select id="sort" aria-label="Ταξινόμηση"><option value="value">Αξία ↓</option><option value="dayup">24h άνοδος ↓</option><option value="daydown">24h πτώση ↑</option><option value="name">Αλφαβητικά</option></select></div></div>
+        <div class="desktop-table"><div class="table-titles"><span>ΝΟΜΙΣΜΑ</span><span>ΠΟΣΟΤΗΤΑ</span><span>ΤΙΜΗ</span><span>ΑΞΙΑ</span><span>24H</span><span>ΚΑΤΑΝΟΜΗ</span></div><div id="coins-desktop"></div></div>
+        <div class="mobile-coins" id="coins-mobile"></div>
+      </section>
+      <footer><div><i class="live-dot"></i> Ιδιωτικά δεδομένα · Read-only από GitHub</div><div id="footer-update">—</div></footer>
+    </main>
+
+    <section id="login-screen" class="login-screen">
+      <div class="login-card">
+        <div class="login-mark">C<span>↗</span></div><p class="eyebrow">PRIVATE CLOUD ACCESS</p><h1>Το portfolio σου.<br><em>Παντού.</em></h1><p class="login-intro">Δες τα τελευταία στοιχεία από το ιδιωτικό σου GitHub, ακόμη και με κλειστό υπολογιστή.</p>
+        <div id="login-error" class="login-error" hidden></div>
+        <div id="setup-section"><label for="token">GitHub token <small>(μόνο Contents: Read-only)</small></label><input id="token" type="password" spellcheck="false" autocomplete="off" placeholder="github_pat_…"><label class="checkline"><input type="checkbox" id="remember"> Κρυπτογραφημένη αποθήκευση σε αυτή τη συσκευή</label><div id="remember-pass-wrap" hidden><label for="remember-pass">Κωδικός ξεκλειδώματος (8+ χαρακτήρες)</label><input id="remember-pass" type="password" autocomplete="new-password" placeholder="Προσωπικός κωδικός"></div><button id="connect" class="primary" type="button">Σύνδεση στο Cloud <span>→</span></button></div>
+        <div id="unlock-section" hidden><label for="unlock-pass">Κωδικός ξεκλειδώματος</label><input id="unlock-pass" type="password" autocomplete="current-password" placeholder="Κωδικός συσκευής"><button id="unlock" class="primary" type="button">Ξεκλείδωμα <span>→</span></button><button class="linkish" id="use-new-token" type="button">Χρήση νέου GitHub token</button></div>
+        <p class="login-note">Τα προσωπικά δεδομένα παραμένουν σε ιδιωτικό repository. Η δημόσια ιστοσελίδα περιλαμβάνει μόνο τον κώδικα προβολής, όχι τις θέσεις σου.</p>
+      </div>
+      <div class="login-art"><div class="art-grid"></div><div class="art-words"><p>ALWAYS CONNECTED</p><h2>YOUR ASSETS.<br><span>YOUR CONTROL.</span></h2><small>LIVE CLOUD SNAPSHOT · 24/7 ACCESS</small></div></div>
+    </section>
+  </div>
+  <script src="./app.js?v=13.3" defer></script>
+</body>
+</html>
