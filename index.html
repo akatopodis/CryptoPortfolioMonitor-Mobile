@@ -10,7 +10,7 @@
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" type="image/png" sizes="192x192" href="./assets/icon-192.png">
   <link rel="apple-touch-icon" href="./assets/icon-192.png">
-  <link rel="stylesheet" href="./styles.css?v=13.4">
+  <link rel="stylesheet" href="./styles.css?v=13.5">
   <title>Crypto Portfolio — Cloud</title>
 </head>
 <body>
@@ -18,7 +18,7 @@
     <header class="topbar">
       <div class="brand">
         <div class="mark">C<span>↗</span></div>
-        <div><strong>CRYPTO <span>PORTFOLIO</span></strong><small>PREMIUM STUDIO · V13.4</small></div>
+        <div><strong>CRYPTO <span>PORTFOLIO</span></strong><small>PREMIUM STUDIO · V13.5</small></div>
       </div>
       <div class="top-actions"><span class="top-status" id="status"><i></i> Αποσυνδεδεμένο</span><button id="refresh" class="icon-btn" type="button" aria-label="Ανανέωση τιμών" title="Ανανέωση τιμών"><span aria-hidden="true">↻</span></button><button id="lock" class="icon-btn" type="button" title="Έξοδος" aria-label="Έξοδος"><span aria-hidden="true">⏻</span></button></div>
     </header>
@@ -35,8 +35,17 @@
         <div class="currency-switch" role="group" aria-label="Νόμισμα"><button type="button" id="usd-btn" class="active">USD</button><button type="button" id="eur-btn">EUR</button></div>
       </section>
       <section class="hero-grid">
-        <article class="hero-total"><div class="eyebrow">ΣΥΝΟΛΙΚΗ ΑΞΙΑ</div><div class="hero-number" id="total">—</div><div class="hero-meta"><span id="total-change" class="movement">—</span><span class="hint">σε σχέση με τη βάση αναφοράς</span></div><div class="glow"></div></article>
+        <article class="hero-total"><div class="eyebrow">ΣΥΝΟΛΙΚΗ ΑΞΙΑ</div><div class="hero-number" id="total">—</div><div class="hero-meta"><span id="total-change" class="movement">—</span><span class="hint">ΑΠΟ ΤΙΜΕΣ ΑΓΟΡΑΣ · ΜΕΡΙΚΟ ΑΝ ΛΕΙΠΟΥΝ ΣΤΟΙΧΕΙΑ</span></div><div class="glow"></div></article>
         <div class="side-metrics"><article class="metric"><div class="eyebrow">ΜΕΤΑΒΟΛΗ 24ΩΡΟΥ <span class="info">≈</span></div><strong id="daily-change">—</strong><small>Εκτίμηση από τιμές 24h</small></article><article class="metric"><div class="eyebrow">ΚΑΤΑΧΩΡΙΣΜΕΝΑ COINS</div><strong id="coin-count">—</strong><small id="source">GitHub Cloud · CoinGecko</small></article></div>
+      </section>
+      <section class="finance-panel" aria-label="Πραγματικό αποτέλεσμα αγοράς">
+        <div class="finance-head"><div><p class="eyebrow">PURCHASE COST  /  FINANCIAL RESULT</p><h2>Αποτέλεσμα από τιμές αγοράς</h2></div><span id="result-coverage" class="finance-coverage">—</span></div>
+        <div class="finance-values">
+          <div class="finance-item"><small>ΣΕ USD</small><strong id="result-usd" class="flat">—</strong></div>
+          <div class="finance-item"><small>ΣΕ EUR · ΤΡΕΧΟΥΣΑ ΙΣΟΤΙΜΙΑ</small><strong id="result-eur" class="flat">—</strong></div>
+        </div>
+        <p class="finance-note" id="cost-sync-notice">Αναμονή στοιχείων κόστους.</p>
+        <p id="reference-note" class="reference-note">Η μεταβολή βάσης αναφοράς δεν είναι αποτέλεσμα αγοράς.</p>
       </section>
       <section class="panel chart-panel" id="performance">
         <div class="section-head"><div><p class="eyebrow">PERFORMANCE  /  REAL HISTORY</p><h2>Ιστορικό αποτίμησης</h2></div><div class="legend"><span class="legend-dot"></span> <span id="chart-currency">USD</span></div></div>
@@ -67,6 +76,12 @@
           <div class="insight-summary-stat"><small id="insight-caption-share">ΝΟΜΙΣΜΑΤΑ / ΕΥΡΟΣ</small><strong id="insight-share">—</strong></div>
           <div class="insight-summary-stat"><small>24ΩΡΟ · ΕΚΤΙΜΗΣΗ</small><strong id="insight-day">—</strong></div>
         </div>
+        <div class="insight-finance-grid" aria-label="Αποτέλεσμα από κόστος αγοράς">
+          <div><small>ΑΠΟΤΕΛΕΣΜΑ · USD</small><strong id="insight-result-usd">—</strong></div>
+          <div><small>ΑΠΟΤΕΛΕΣΜΑ · EUR</small><strong id="insight-result-eur">—</strong></div>
+          <div><small>ΑΠΟΔΟΣΗ ΑΠΟ ΚΟΣΤΟΣ</small><strong id="insight-result-pct">—</strong></div>
+        </div>
+        <p id="insight-result-info" class="finance-note">Οι τιμές αγοράς μεταφέρονται από ιδιωτικό Cloud.</p>
         <div class="insight-foot"><strong id="insight-focus-title">PORTFOLIO  /  OVERVIEW</strong><span id="insight-note">Επίλεξε νόμισμα για μεμονωμένη ανάλυση.</span></div>
       </section>
       <section class="panel coins-panel" id="holdings">
@@ -88,6 +103,6 @@
       <div class="login-art"><div class="art-grid"></div><div class="art-words"><p>ALWAYS CONNECTED</p><h2>YOUR ASSETS.<br><span>YOUR CONTROL.</span></h2><small>LIVE CLOUD SNAPSHOT · 24/7 ACCESS</small></div></div>
     </section>
   </div>
-  <script src="./app.js?v=13.4" defer></script>
+  <script src="./app.js?v=13.5" defer></script>
 </body>
 </html>
