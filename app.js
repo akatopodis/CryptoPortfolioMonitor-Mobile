@@ -2,6 +2,9 @@
 const REPOSITORY = 'akatopodis/CryptoPortfolioMonitor';
 const SNAPSHOT_URL = `https://api.github.com/repos/${REPOSITORY}/contents/cloud/snapshot.json`;
 const VERIFY_URL = `https://api.github.com/repos/${REPOSITORY}/contents/portfolio.json`;
+// Authoritative private holdings/cost revision. The older snapshot supplies prices and history only.
+const HOLDINGS_INTERVAL_MS=60000;
+
 // This file is PRIVATE. Never put positions or prices paid into the public PWA repository.
 const BASIS_URL = `https://api.github.com/repos/${REPOSITORY}/contents/cloud/cost_basis.json`;
 const SESSION_KEY='cpm_pwa_session_token_v1';
@@ -18,9 +21,9 @@ const dom = Object.fromEntries([
  'analysis-select','insight-usd','insight-eur','insight-share','insight-day','insight-caption-share','insight-focus-title','insight-note',
  'reference-note','result-usd','result-eur','result-coverage','cost-sync-notice',
  'insight-result-usd','insight-result-eur','insight-result-pct','insight-result-info',
- 'brief-freshness','brief-breadth','brief-mover','brief-concentration','brief-allocation','mobile-dock','market-source','market-message'
+ 'holdings-sync-status','brief-freshness','brief-breadth','brief-mover','brief-concentration','brief-allocation','mobile-dock','market-source','market-message'
 ].map(id=>[id,document.getElementById(id)]));
-const state = {token:'', snapshot:null, cloudSnapshot:null, marketAt:0, marketCount:0, marketError:'', marketBusy:false, lastMarketAttempt:0, marketRetryAt:0, costBasis:null, currency:'USD', busy:false, chartPoints:[], chartBounds:null, selectedPoint:-1,chartDays:7,chartZoom:1};
+const state = {token:'', snapshot:null, cloudSnapshot:null, marketAt:0, marketCount:0, marketError:'', marketBusy:false, lastMarketAttempt:0, marketRetryAt:0, costBasis:null, portfolioRevision:null, portfolioFetchBusy:false, holdingsCheckedAt:0, holdingsSyncError:"", currency:'USD', busy:false, chartPoints:[], chartBounds:null, selectedPoint:-1,chartDays:7,chartZoom:1};
 // Gesture state lives only in the browser; it never changes the portfolio or cloud records.
 const chartPinch = {active:false, distance:0, zoomAtStart:1};
 const fmtNum=(v,max=2)=>new Intl.NumberFormat('el-GR',{maximumFractionDigits:max,minimumFractionDigits:max}).format(Number(v));
@@ -93,6 +96,54 @@ function validateSnapshot(data){
   if(!Number.isFinite(+data.total.usd)||!Number.isFinite(+data.total.eur)||!data.coins.every(c=>typeof c.symbol==='string'&&Number.isFinite(+c.value_usd)&&Number.isFinite(+c.value_eur)))throw Error('Μη έγκυρα δεδομένα αποτίμησης.');
   return data;
 }
+// Combine the latest AUTHENTICATED private portfolio revision with real observed
+// market prices. Never overwrite amounts with stale cloud/snapshot quantities.
+function validatePrivatePortfolio(data){
+  if(!data||!Array.isArray(data.coins)||data.coins.length<1||data.coins.length>50)throw Error('Invalid private portfolio');
+  const seen=new Set(),coins=[];
+  for(const item of data.coins){
+    if(!item||typeof item.symbol!=='string'||!/^[A-Z0-9]{2,16}$/.test(item.symbol)||
+       typeof item.coingecko_id!=='string'||!/^[a-z0-9-]{2,100}$/.test(item.coingecko_id)||
+       typeof item.amount!=='number'||!Number.isFinite(item.amount)||item.amount<0||seen.has(item.symbol))throw Error('Invalid private holdings');
+    seen.add(item.symbol);coins.push({symbol:item.symbol,id:item.coingecko_id,amount:item.amount});
+  }
+  let basis=null;
+  if(Object.prototype.hasOwnProperty.call(data,'cost_basis_usd')){
+    if(!data.cost_basis_usd||typeof data.cost_basis_usd!=='object'||Array.isArray(data.cost_basis_usd))throw Error('Invalid private purchase basis');
+    basis=validateCostBasis({schema:1,cost_usd:data.cost_basis_usd});
+  }
+  return {coins,basis,revision:JSON.stringify([coins,basis?.cost_usd??null])};
+}
+function overlayPrivateHoldings(snapshot,privatePortfolio){
+  const old=new Map(snapshot.coins.map(c=>[c.symbol,c]));
+  const coins=privatePortfolio.coins.map(position=>{
+    const reference=old.get(position.symbol);
+    const matched=reference&&reference.id===position.id;
+    const usd=matched&&Number.isFinite(+reference.price_usd)&&+reference.price_usd>0?+reference.price_usd:null;
+    const eur=matched&&Number.isFinite(+reference.price_eur)&&+reference.price_eur>0?+reference.price_eur:null;
+    return {...(matched?reference:{}), ...position,
+      price_usd:usd,price_eur:eur,
+      value_usd:usd===null?null:position.amount*usd,
+      value_eur:eur===null?null:position.amount*eur,
+      quotes_available:usd!==null&&eur!==null};
+  });
+  const knownUsd=coins.reduce((t,c)=>t+(c.value_usd===null?0:c.value_usd),0);
+  const knownEur=coins.reduce((t,c)=>t+(c.value_eur===null?0:c.value_eur),0);
+  coins.forEach(c=>{c.weight_pct=knownUsd>0&&c.value_usd!==null?100*c.value_usd/knownUsd:0});
+  const missing=coins.filter(c=>c.value_usd===null||c.value_eur===null).map(c=>c.symbol);
+  const previousUsd=Number(snapshot.total.usd),previousEur=Number(snapshot.total.eur);
+  const previousDeltaUsd=Number(snapshot.total.change_from_baseline_usd);
+  const previousDeltaEur=Number(snapshot.total.change_from_baseline_eur_est);
+  const baselineUsd=Number.isFinite(previousUsd)&&Number.isFinite(previousDeltaUsd)?previousUsd-previousDeltaUsd:null;
+  const baselineEur=Number.isFinite(previousEur)&&Number.isFinite(previousDeltaEur)?previousEur-previousDeltaEur:null;
+  const total={...snapshot.total,usd:missing.length?null:knownUsd,eur:missing.length?null:knownEur,
+    change_from_baseline_usd:!missing.length&&baselineUsd!==null?knownUsd-baselineUsd:null,
+    change_from_baseline_eur_est:!missing.length&&baselineEur!==null?knownEur-baselineEur:null,
+    change_from_baseline_pct:!missing.length&&baselineUsd>0?(knownUsd-baselineUsd)/baselineUsd*100:null};
+  // Do not present incomplete totals as complete, and do not fabricate historical data.
+  return {...snapshot,coins,total,reference_baseline_usd:baselineUsd,reference_baseline_eur:baselineEur,
+    position_sync_at:new Date().toISOString(),position_sync_missing:missing};
+}
 // Live market quotes are read-only and independent of the Windows PC.
 // Only CoinGecko asset IDs are sent; never quantities, wallet data, GitHub tokens or costs.
 // Historical chart points always remain genuine GitHub snapshot observations.
@@ -114,18 +165,21 @@ function buildMarketView(base,quotes,nowSeconds){
       day_pct:Number.isFinite(day)?day:c.day_pct,live_quote:true};
   });
   if(!accepted)throw Error('No current market quotes available');
-  const usd=coins.reduce((t,c)=>t+Number(c.value_usd||0),0);
-  const eur=coins.reduce((t,c)=>t+Number(c.value_eur||0),0);
+  const missing=coins.filter(c=>!Number.isFinite(c.value_usd)||!Number.isFinite(c.value_eur)).map(c=>c.symbol);
+  const usd=coins.reduce((t,c)=>t+(Number.isFinite(c.value_usd)?c.value_usd:0),0);
+  const eur=coins.reduce((t,c)=>t+(Number.isFinite(c.value_eur)?c.value_eur:0),0);
   const weighted=coins.reduce((t,c)=>t+(Number.isFinite(Number(c.day_pct))?Number(c.value_usd||0)*Number(c.day_pct):0),0);
   const validWeight=coins.reduce((t,c)=>t+(Number.isFinite(Number(c.day_pct))?Number(c.value_usd||0):0),0);
-  const baselineUsd=Number(base.total.usd)-Number(base.total.change_from_baseline_usd||0);
-  const baselineEur=Number(base.total.eur)-Number(base.total.change_from_baseline_eur_est||0);
-  const total={...base.total,usd,eur,change_from_baseline_usd:usd-baselineUsd,
-    change_from_baseline_eur_est:eur-baselineEur,
-    change_from_baseline_pct:baselineUsd>0?100*(usd-baselineUsd)/baselineUsd:null,
+  const baselineUsd=Number.isFinite(base.reference_baseline_usd)?base.reference_baseline_usd:
+    (Number(base.total.usd)-Number(base.total.change_from_baseline_usd||0));
+  const baselineEur=Number.isFinite(base.reference_baseline_eur)?base.reference_baseline_eur:
+    (Number(base.total.eur)-Number(base.total.change_from_baseline_eur_est||0));
+  const total={...base.total,usd:missing.length?null:usd,eur:missing.length?null:eur,change_from_baseline_usd:missing.length?null:usd-baselineUsd,
+    change_from_baseline_eur_est:missing.length?null:eur-baselineEur,
+    change_from_baseline_pct:!missing.length&&baselineUsd>0?100*(usd-baselineUsd)/baselineUsd:null,
     day_pct_est:validWeight>0?weighted/validWeight:null};
   coins.forEach(c=>{c.weight_pct=usd>0?100*Number(c.value_usd||0)/usd:0;});
-  return {...base,coins,total,market_overlay:true,market_count:accepted};
+  return {...base,coins,total,position_sync_missing:missing,market_overlay:true,market_count:accepted};
 }
 function marketStatus(){
   if(!dom['market-source'])return;
@@ -190,12 +244,15 @@ async function beginSession(token,rememberPassword=''){
       }
       throw e;
     }
-    let costBasis=null, costBasisError='';
-    try{costBasis=await getOptionalCostBasis(token);}catch(err){costBasisError=err.message||'Αδυναμία ανάγνωσης στοιχείων αγοράς';}
+    const portfolio=validatePrivatePortfolio(await getPrivateJson(token,VERIFY_URL));
+    let costBasis=portfolio.basis, costBasisError='';
+    if(!costBasis){try{costBasis=await getOptionalCostBasis(token);}catch(err){costBasisError=err.message||'Αδυναμία ανάγνωσης στοιχείων αγοράς';}}
+    snapshot=overlayPrivateHoldings(snapshot,portfolio);
     if(rememberPassword){await storeEncryptedToken(token,rememberPassword);}
     state.token=token;
     sessionStorage.setItem(SESSION_KEY,token);
     state.cloudSnapshot=snapshot;state.snapshot=snapshot;state.marketAt=0;state.marketError='';
+    state.portfolioRevision=portfolio.revision;state.holdingsCheckedAt=Date.now();state.holdingsSyncError='';
     state.costBasis=costBasis;
     state.costBasisError=costBasisError;
     dom['login-screen'].hidden=true;dom.dashboard.hidden=false;dom['mobile-dock'].hidden=false;
@@ -211,6 +268,9 @@ function render(){
   const live=state.marketAt&&Date.now()-state.marketAt<180000;
   setStatus(live?'online':ageMinutes>45?'warn':'online',live?'Live market':ageMinutes>45?'Παλιές τιμές':'Cloud online');
   text('last-updated','Τελευταία cloud καταγραφή: '+new Date(s.updated_at).toLocaleString('el-GR',{dateStyle:'medium',timeStyle:'short'})+(ageMinutes>45?' · ΠΑΛΙΕΣ ΤΙΜΕΣ':''));
+  if(dom['holdings-sync-status'])dom['holdings-sync-status'].textContent=state.holdingsSyncError
+    ?'ΘΕΣΕΙΣ: αναμονή συγχρονισμού · '+state.holdingsSyncError
+    :(state.holdingsCheckedAt?'ΘΕΣΕΙΣ + ΚΟΣΤΟΣ: Private GitHub · έλεγχος '+new Date(state.holdingsCheckedAt).toLocaleTimeString('el-GR',{hour:'2-digit',minute:'2-digit'}):'ΘΕΣΕΙΣ: αναμονή');
   text('total',money(s.total[isUSD?'usd':'eur']));
   const report=portfolioCostResult();
   // The reference baseline is NOT purchase cost, and must NEVER look like P/L.
@@ -429,14 +489,38 @@ function chartInteract(event){
 async function refresh(){
   if(state.busy||!state.token)return;state.busy=true;dom.refresh.disabled=true;
   try{
-    const latest=validateSnapshot(await getPrivateJson(state.token,SNAPSHOT_URL));
-    let basis=null,error='';
-    try{basis=await getOptionalCostBasis(state.token);}catch(e){error=e.message||'Σφάλμα λήψης τιμών αγοράς';}
-    state.cloudSnapshot=latest;state.snapshot=latest;state.marketAt=0;state.costBasis=basis;state.costBasisError=error;render();
+    const snapshot=validateSnapshot(await getPrivateJson(state.token,SNAPSHOT_URL));
+    const portfolio=validatePrivatePortfolio(await getPrivateJson(state.token,VERIFY_URL));
+    const latest=overlayPrivateHoldings(snapshot,portfolio);
+    let basis=portfolio.basis,error='';
+    if(!basis){try{basis=await getOptionalCostBasis(state.token);}catch(e){error=e.message||'Σφάλμα λήψης τιμών αγοράς';}}
+    state.cloudSnapshot=latest;state.snapshot=latest;state.marketAt=0;state.portfolioRevision=portfolio.revision;
+    state.holdingsCheckedAt=Date.now();state.holdingsSyncError='';
+    state.costBasis=basis;state.costBasisError=error;render();
     void refreshMarketPrices();
   }
   catch(e){setStatus('fail','Σφάλμα Cloud');text('last-updated','Δεν ήταν δυνατή η νέα λήψη: '+e.message+' · Προβάλλονται οι τελευταίες τιμές');}
   finally{state.busy=false;dom.refresh.disabled=false;}
+}
+async function refreshPrivatePositions(){
+  if(state.busy||state.portfolioFetchBusy||!state.token||document.hidden)return;
+  state.portfolioFetchBusy=true;
+  const token=state.token;
+  try{
+    const portfolio=validatePrivatePortfolio(await getPrivateJson(token,VERIFY_URL));
+    if(token!==state.token||!state.cloudSnapshot)return;
+    state.holdingsCheckedAt=Date.now();state.holdingsSyncError='';
+    if(portfolio.revision===state.portfolioRevision){
+      if(dom['holdings-sync-status'])dom['holdings-sync-status'].textContent='ΘΕΣΕΙΣ + ΚΟΣΤΟΣ: Private GitHub · έλεγχος '+new Date(state.holdingsCheckedAt).toLocaleTimeString('el-GR',{hour:'2-digit',minute:'2-digit'});
+      return;
+    }
+    const synced=overlayPrivateHoldings(state.cloudSnapshot,portfolio);
+    state.cloudSnapshot=synced;state.snapshot=synced;state.marketAt=0;
+    state.portfolioRevision=portfolio.revision;
+    if(portfolio.basis)state.costBasis=portfolio.basis;
+    render();void refreshMarketPrices();
+  }catch(e){if(token===state.token){state.holdingsSyncError=String(e.message||'network error').slice(0,85);setStatus('warn','Holdings sync pending');if(dom['holdings-sync-status'])dom['holdings-sync-status'].textContent='ΘΕΣΕΙΣ: αναμονή · '+state.holdingsSyncError;}}
+  finally{state.portfolioFetchBusy=false;}
 }
 function logout(){sessionStorage.removeItem(SESSION_KEY);localStorage.removeItem(VAULT_KEY);state.token='';state.snapshot=null;state.cloudSnapshot=null;state.marketAt=0;state.marketRetryAt=0;state.marketError='';state.costBasis=null;dom.dashboard.hidden=true;dom['mobile-dock'].hidden=true;dom['login-screen'].hidden=false;dom.token.value='';dom['unlock-pass'].value='';dom['remember-pass'].value='';dom.remember.checked=false;dom['remember-pass-wrap'].hidden=true;dom['setup-section'].hidden=false;dom['unlock-section'].hidden=true;clearError();setStatus('','Αποσυνδεδεμένο');}
 dom.connect.addEventListener('click',()=>{const token=dom.token.value.trim();if(!token){showError('Συμπλήρωσε το GitHub token.');return;}const password=dom.remember.checked?dom['remember-pass'].value:'';if(dom.remember.checked&&password.length<8){showError('Ο κωδικός αποθήκευσης πρέπει να έχει τουλάχιστον 8 χαρακτήρες.');return;}beginSession(token,password);});
@@ -500,6 +584,7 @@ document.addEventListener('visibilitychange',()=>{if(!document.hidden&&state.tok
 // Cloud snapshots can be slower than market quotes; they are fetched separately.
 setInterval(()=>{if(state.token&&!document.hidden)void refreshMarketPrices()},MARKET_INTERVAL_MS);
 setInterval(()=>{if(state.token&&!document.hidden)void refresh()},300000);
+setInterval(()=>{if(state.token&&!document.hidden)void refreshPrivatePositions()},HOLDINGS_INTERVAL_MS);
 if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
 const session=sessionStorage.getItem(SESSION_KEY);const saved=localStorage.getItem(VAULT_KEY);
 if(session){beginSession(session);}else if(saved){dom['setup-section'].hidden=true;dom['unlock-section'].hidden=false;}
