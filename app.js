@@ -6,6 +6,9 @@ const VERIFY_URL = `https://api.github.com/repos/${REPOSITORY}/contents/portfoli
 const BASIS_URL = `https://api.github.com/repos/${REPOSITORY}/contents/cloud/cost_basis.json`;
 const SESSION_KEY='cpm_pwa_session_token_v1';
 const VAULT_KEY='cpm_pwa_encrypted_token_v1';
+const MARKET_API='https://api.coingecko.com/api/v3/simple/price';
+const MARKET_INTERVAL_MS=60000; // Browser may throttle or suspend timers in background.
+const MARKET_MAX_AGE_SECONDS=1200;
 const dom = Object.fromEntries([
  'dashboard','login-screen','status','refresh','lock','last-updated','total','total-change','daily-change',
  'coin-count','source','small-count','coins-desktop','coins-mobile','search','sort','footer-update','usd-btn',
@@ -15,9 +18,9 @@ const dom = Object.fromEntries([
  'analysis-select','insight-usd','insight-eur','insight-share','insight-day','insight-caption-share','insight-focus-title','insight-note',
  'reference-note','result-usd','result-eur','result-coverage','cost-sync-notice',
  'insight-result-usd','insight-result-eur','insight-result-pct','insight-result-info',
- 'brief-freshness','brief-breadth','brief-mover','brief-concentration','brief-allocation','mobile-dock'
+ 'brief-freshness','brief-breadth','brief-mover','brief-concentration','brief-allocation','mobile-dock','market-source','market-message'
 ].map(id=>[id,document.getElementById(id)]));
-const state = {token:'', snapshot:null, costBasis:null, currency:'USD', busy:false, chartPoints:[], chartBounds:null, selectedPoint:-1,chartDays:7,chartZoom:1};
+const state = {token:'', snapshot:null, cloudSnapshot:null, marketAt:0, marketCount:0, marketError:'', marketBusy:false, lastMarketAttempt:0, marketRetryAt:0, costBasis:null, currency:'USD', busy:false, chartPoints:[], chartBounds:null, selectedPoint:-1,chartDays:7,chartZoom:1};
 // Gesture state lives only in the browser; it never changes the portfolio or cloud records.
 const chartPinch = {active:false, distance:0, zoomAtStart:1};
 const fmtNum=(v,max=2)=>new Intl.NumberFormat('el-GR',{maximumFractionDigits:max,minimumFractionDigits:max}).format(Number(v));
@@ -90,6 +93,74 @@ function validateSnapshot(data){
   if(!Number.isFinite(+data.total.usd)||!Number.isFinite(+data.total.eur)||!data.coins.every(c=>typeof c.symbol==='string'&&Number.isFinite(+c.value_usd)&&Number.isFinite(+c.value_eur)))throw Error('Μη έγκυρα δεδομένα αποτίμησης.');
   return data;
 }
+// Live market quotes are read-only and independent of the Windows PC.
+// Only CoinGecko asset IDs are sent; never quantities, wallet data, GitHub tokens or costs.
+// Historical chart points always remain genuine GitHub snapshot observations.
+function buildMarketView(base,quotes,nowSeconds){
+  if(!base||!Array.isArray(base.coins)||!quotes||typeof quotes!=='object')throw Error('Invalid market data');
+  let accepted=0;
+  const coins=base.coins.map(c=>{
+    const id=String(c.id||'');
+    if(!/^[a-z0-9-]{2,80}$/.test(id))return {...c};
+    const q=quotes[id];
+    if(!q||typeof q!=='object')return {...c};
+    const usd=q.usd,eur=q.eur,at=q.last_updated_at;
+    if(typeof usd!=='number'||typeof eur!=='number'||!Number.isFinite(usd)||!Number.isFinite(eur)||usd<=0||eur<=0||!Number.isFinite(at)||at>nowSeconds+300||nowSeconds-at>MARKET_MAX_AGE_SECONDS)return {...c};
+    const amount=Number(c.amount);
+    if(!Number.isFinite(amount)||amount<0)return {...c};
+    accepted++;
+    const day=Number(q.usd_24h_change);
+    return {...c,price_usd:usd,price_eur:eur,value_usd:amount*usd,value_eur:amount*eur,
+      day_pct:Number.isFinite(day)?day:c.day_pct,live_quote:true};
+  });
+  if(!accepted)throw Error('No current market quotes available');
+  const usd=coins.reduce((t,c)=>t+Number(c.value_usd||0),0);
+  const eur=coins.reduce((t,c)=>t+Number(c.value_eur||0),0);
+  const weighted=coins.reduce((t,c)=>t+(Number.isFinite(Number(c.day_pct))?Number(c.value_usd||0)*Number(c.day_pct):0),0);
+  const validWeight=coins.reduce((t,c)=>t+(Number.isFinite(Number(c.day_pct))?Number(c.value_usd||0):0),0);
+  const baselineUsd=Number(base.total.usd)-Number(base.total.change_from_baseline_usd||0);
+  const baselineEur=Number(base.total.eur)-Number(base.total.change_from_baseline_eur_est||0);
+  const total={...base.total,usd,eur,change_from_baseline_usd:usd-baselineUsd,
+    change_from_baseline_eur_est:eur-baselineEur,
+    change_from_baseline_pct:baselineUsd>0?100*(usd-baselineUsd)/baselineUsd:null,
+    day_pct_est:validWeight>0?weighted/validWeight:null};
+  coins.forEach(c=>{c.weight_pct=usd>0?100*Number(c.value_usd||0)/usd:0;});
+  return {...base,coins,total,market_overlay:true,market_count:accepted};
+}
+function marketStatus(){
+  if(!dom['market-source'])return;
+  const live=state.marketAt&&Date.now()-state.marketAt<180000;
+  dom['market-source'].textContent=live?'LIVE MARKET · CoinGecko':'CLOUD SNAPSHOT · GitHub';
+  dom['market-source'].classList.toggle('live',!!live);
+  dom['market-message'].textContent=live
+    ?'Τιμές αγοράς από CoinGecko · '+state.marketCount+' / '+state.snapshot.coins.length+' assets · '+new Date(state.marketAt).toLocaleTimeString('el-GR',{hour:'2-digit',minute:'2-digit'})+' · Ιστορικό μόνο από Cloud'
+    :(state.marketError?'Live feed μη διαθέσιμο · Χρήση τελευταίου Cloud snapshot · '+state.marketError:'Αναμονή ζωντανών τιμών · Ιστορικό μόνο από Cloud');
+}
+async function refreshMarketPrices(){
+  if(state.marketBusy||!state.token||!state.cloudSnapshot||document.hidden||Date.now()<state.marketRetryAt)return;
+  const ids=[...new Set(state.cloudSnapshot.coins.map(c=>String(c.id||'')).filter(id=>/^[a-z0-9-]{2,80}$/.test(id)))];
+  if(!ids.length){state.marketError='Δεν υπάρχουν έγκυρα CoinGecko IDs';marketStatus();return;}
+  const sessionToken=state.token;const marketBase=state.cloudSnapshot;
+  state.marketBusy=true;state.lastMarketAttempt=Date.now();
+  const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),12000);
+  try{
+    const url=MARKET_API+'?ids='+encodeURIComponent(ids.join(','))+'&vs_currencies=usd%2Ceur&include_24hr_change=true&include_last_updated_at=true';
+    const r=await fetch(url,{method:'GET',headers:{Accept:'application/json'},cache:'no-store',signal:controller.signal,credentials:'omit'});
+    if(!r.ok)throw Error(r.status===429?'CoinGecko rate limit':'Market HTTP '+r.status);
+    const q=await r.json();
+    const view=buildMarketView(marketBase,q,Math.floor(Date.now()/1000));
+    if(!state.token||state.token!==sessionToken||state.cloudSnapshot!==marketBase)return;
+    state.snapshot=view;state.marketAt=Date.now();state.marketCount=view.market_count;state.marketError='';state.marketRetryAt=0;
+    render();
+  }catch(e){
+    if(!state.token||state.token!==sessionToken||state.cloudSnapshot!==marketBase)return;
+    state.marketError=e.name==='AbortError'?'Timeout αγοράς':String(e.message||'API error').slice(0,100);
+    state.marketRetryAt=Date.now()+(state.marketError.includes('rate limit')?300000:60000);
+    // When the direct provider fails, never silently mark old prices as live.
+    if(!state.marketAt||Date.now()-state.marketAt>180000){state.snapshot=state.cloudSnapshot;state.marketAt=0;render();}
+    marketStatus();
+  }finally{clearTimeout(timeout);state.marketBusy=false;}
+}
 function bytesB64(bytes){return btoa(String.fromCharCode(...bytes));}
 function b64Bytes(str){return Uint8Array.from(atob(str),c=>c.charCodeAt(0));}
 async function deriveKey(password,salt,usage){
@@ -124,11 +195,11 @@ async function beginSession(token,rememberPassword=''){
     if(rememberPassword){await storeEncryptedToken(token,rememberPassword);}
     state.token=token;
     sessionStorage.setItem(SESSION_KEY,token);
-    state.snapshot=snapshot;
+    state.cloudSnapshot=snapshot;state.snapshot=snapshot;state.marketAt=0;state.marketError='';
     state.costBasis=costBasis;
     state.costBasisError=costBasisError;
     dom['login-screen'].hidden=true;dom.dashboard.hidden=false;dom['mobile-dock'].hidden=false;
-    render();
+    render();void refreshMarketPrices();
   }catch(e){setStatus('fail','Αποσυνδεδεμένο');showError(e.message||'Αποτυχία σύνδεσης.');}
   finally{state.busy=false;dom.connect.disabled=false;dom.unlock.disabled=false;}
 }
@@ -137,7 +208,8 @@ function render(){
   const isUSD=state.currency==='USD';
   dom['usd-btn'].classList.toggle('active',isUSD);dom['eur-btn'].classList.toggle('active',!isUSD);
   const ageMinutes=(Date.now()-Date.parse(s.updated_at))/60000;
-  setStatus(ageMinutes>45?'warn':'online',ageMinutes>45?'Παλιές τιμές':'Cloud online');
+  const live=state.marketAt&&Date.now()-state.marketAt<180000;
+  setStatus(live?'online':ageMinutes>45?'warn':'online',live?'Live market':ageMinutes>45?'Παλιές τιμές':'Cloud online');
   text('last-updated','Τελευταία cloud καταγραφή: '+new Date(s.updated_at).toLocaleString('el-GR',{dateStyle:'medium',timeStyle:'short'})+(ageMinutes>45?' · ΠΑΛΙΕΣ ΤΙΜΕΣ':''));
   text('total',money(s.total[isUSD?'usd':'eur']));
   const report=portfolioCostResult();
@@ -160,7 +232,7 @@ function render(){
   text('coin-count',String(s.coins.length));text('small-count',String(s.coins.length));text('source','CoinGecko · GitHub Actions');
   text('footer-update','Cloud: '+new Date(s.updated_at).toLocaleString('el-GR'));
   text('chart-currency',state.currency);
-  renderCoins();renderInsights();renderMarketBrief();drawChart();
+  renderCoins();renderInsights();renderMarketBrief();drawChart();marketStatus();
 }
 // Per-coin insights are computed from the authenticated private snapshot only.
 // The public PWA shell ships no holdings, tokens or fabricated coin history.
@@ -178,9 +250,9 @@ function renderMarketBrief(){
   const total=sorted.reduce((sum,c)=>sum+Number(c.value_usd),0);
   const top=sorted.slice(0,3).reduce((sum,c)=>sum+Number(c.value_usd),0);
   text('brief-concentration',total>0?fmtNum(top/total*100,1)+'%':'—');
-  const updated=Date.parse(snapshot.updated_at);
-  const age=(Date.now()-updated)/60000,stale=!Number.isFinite(age)||age>45;
-  text('brief-freshness',stale?'ΠΑΛΙΕΣ ΤΙΜΕΣ':'ΕΝΗΜΕΡΩΜΕΝΟ');
+  const updated=state.marketAt||Date.parse(snapshot.updated_at);
+  const age=(Date.now()-updated)/60000,stale=!Number.isFinite(age)||age>3&&!!state.marketAt||!state.marketAt&&age>45;
+  text('brief-freshness',stale?'ΠΑΛΙΕΣ ΤΙΜΕΣ':state.marketAt?'LIVE MARKET':'CLOUD SNAPSHOT');
   dom['brief-freshness'].classList.toggle('stale',stale);
   const wrap=dom['brief-allocation'];wrap.replaceChildren();
   if(total<=0)return;
@@ -360,19 +432,20 @@ async function refresh(){
     const latest=validateSnapshot(await getPrivateJson(state.token,SNAPSHOT_URL));
     let basis=null,error='';
     try{basis=await getOptionalCostBasis(state.token);}catch(e){error=e.message||'Σφάλμα λήψης τιμών αγοράς';}
-    state.snapshot=latest;state.costBasis=basis;state.costBasisError=error;render();
+    state.cloudSnapshot=latest;state.snapshot=latest;state.marketAt=0;state.costBasis=basis;state.costBasisError=error;render();
+    void refreshMarketPrices();
   }
   catch(e){setStatus('fail','Σφάλμα Cloud');text('last-updated','Δεν ήταν δυνατή η νέα λήψη: '+e.message+' · Προβάλλονται οι τελευταίες τιμές');}
   finally{state.busy=false;dom.refresh.disabled=false;}
 }
-function logout(){sessionStorage.removeItem(SESSION_KEY);localStorage.removeItem(VAULT_KEY);state.token='';state.snapshot=null;state.costBasis=null;dom.dashboard.hidden=true;dom['mobile-dock'].hidden=true;dom['login-screen'].hidden=false;dom.token.value='';dom['unlock-pass'].value='';dom['remember-pass'].value='';dom.remember.checked=false;dom['remember-pass-wrap'].hidden=true;dom['setup-section'].hidden=false;dom['unlock-section'].hidden=true;clearError();setStatus('','Αποσυνδεδεμένο');}
+function logout(){sessionStorage.removeItem(SESSION_KEY);localStorage.removeItem(VAULT_KEY);state.token='';state.snapshot=null;state.cloudSnapshot=null;state.marketAt=0;state.marketRetryAt=0;state.marketError='';state.costBasis=null;dom.dashboard.hidden=true;dom['mobile-dock'].hidden=true;dom['login-screen'].hidden=false;dom.token.value='';dom['unlock-pass'].value='';dom['remember-pass'].value='';dom.remember.checked=false;dom['remember-pass-wrap'].hidden=true;dom['setup-section'].hidden=false;dom['unlock-section'].hidden=true;clearError();setStatus('','Αποσυνδεδεμένο');}
 dom.connect.addEventListener('click',()=>{const token=dom.token.value.trim();if(!token){showError('Συμπλήρωσε το GitHub token.');return;}const password=dom.remember.checked?dom['remember-pass'].value:'';if(dom.remember.checked&&password.length<8){showError('Ο κωδικός αποθήκευσης πρέπει να έχει τουλάχιστον 8 χαρακτήρες.');return;}beginSession(token,password);});
 dom.token.addEventListener('keydown',e=>{if(e.key==='Enter')dom.connect.click()});
 dom.remember.addEventListener('change',()=>dom['remember-pass-wrap'].hidden=!dom.remember.checked);
 dom.unlock.addEventListener('click',async()=>{try{clearError();const token=await unlockEncryptedToken(dom['unlock-pass'].value);beginSession(token);}catch(e){showError(e.message);}});
 dom['unlock-pass'].addEventListener('keydown',e=>{if(e.key==='Enter')dom.unlock.click()});
 dom['use-new-token'].addEventListener('click',()=>{localStorage.removeItem(VAULT_KEY);dom['unlock-section'].hidden=true;dom['setup-section'].hidden=false;clearError();});
-dom.refresh.addEventListener('click',refresh);dom.lock.addEventListener('click',logout);
+dom.refresh.addEventListener('click',async()=>{await refresh();if(state.token)await refreshMarketPrices();});dom.lock.addEventListener('click',logout);
 dom['usd-btn'].addEventListener('click',()=>{state.currency='USD';state.selectedPoint=-1;render();});
 dom['eur-btn'].addEventListener('click',()=>{state.currency='EUR';state.selectedPoint=-1;render();});
 dom.search.addEventListener('input',renderCoins);dom.sort.addEventListener('change',renderCoins);
@@ -423,8 +496,10 @@ dom['history-chart'].addEventListener('pointermove',chartInteract);
 dom['history-chart'].addEventListener('pointerdown',chartInteract);
 dom['history-chart'].addEventListener('pointerleave',e=>{if(e.pointerType==='touch')return;state.selectedPoint=-1;dom['chart-tooltip'].hidden=true;drawChart();});
 window.addEventListener('resize',()=>{if(state.snapshot)drawChart();});
-document.addEventListener('visibilitychange',()=>{if(!document.hidden&&state.token)refresh();});
-setInterval(()=>{if(state.token&&!document.hidden)refresh()},60000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&state.token){void refresh();}});
+// Cloud snapshots can be slower than market quotes; they are fetched separately.
+setInterval(()=>{if(state.token&&!document.hidden)void refreshMarketPrices()},MARKET_INTERVAL_MS);
+setInterval(()=>{if(state.token&&!document.hidden)void refresh()},300000);
 if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
 const session=sessionStorage.getItem(SESSION_KEY);const saved=localStorage.getItem(VAULT_KEY);
 if(session){beginSession(session);}else if(saved){dom['setup-section'].hidden=true;dom['unlock-section'].hidden=false;}
