@@ -166,3 +166,9 @@ footer{padding-top:19px}
 .market-source.live{background:#0a3c35;border-color:#1c8a72;color:#63e6b8}
 #market-message{overflow-wrap:anywhere;flex:1;min-width:180px}
 @media(max-width:600px){.market-source-line{font-size:10px;gap:6px}#market-message{min-width:100%}}
+
+/* Verified private holdings revision freshness: distinct from market quote freshness. */
+.holdings-sync-status{font-size:11px;color:#9edbd3;margin-top:6px;line-height:1.4;overflow-wrap:anywhere}
+
+/* Separate private positions freshness from market quote freshness. */
+.holdings-sync-status{font-size:11px;color:#9edbd3;margin-top:6px;line-height:1.4;overflow-wrap:anywhere}
