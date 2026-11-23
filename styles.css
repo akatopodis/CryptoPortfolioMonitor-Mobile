@@ -121,3 +121,16 @@ footer{padding-top:19px}
   .icon-btn{width:33px;height:34px;min-width:33px;flex-shrink:0;padding:0;font-size:20px}
   .icon-btn span{font-size:20px}
 }
+
+/* 13.5 — legible mobile cards; true cost-based results from private cloud only. */
+.hero-total{border-color:#38557d}.hero-meta{gap:12px}.hero-meta .movement{font-size:clamp(14px,2vw,19px);line-height:1.5;padding:10px 12px}.hero-meta .hint{font-size:10px;line-height:1.5}
+.finance-panel{margin:0 0 20px;border:1px solid #334662;border-radius:17px;background:linear-gradient(120deg,#14253c,#0f1a2d);padding:20px 24px}
+.finance-head{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px}.finance-head h2{font-size:18px;margin:0;color:#ecf3ff}.finance-coverage{background:#1c3048;border:1px solid #32465d;color:#adc6e4;border-radius:18px;font-size:11px;font-weight:700;padding:7px 11px}
+.finance-values{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px}.finance-item{border:1px solid #263a55;background:#0c1b2e;border-radius:12px;padding:15px 17px;min-width:0}
+.finance-item small,.insight-finance-grid small{display:block;color:#8ea7c9;font-size:10px;letter-spacing:.07em;font-weight:800;margin-bottom:8px}
+.finance-item strong{font-size:clamp(22px,4vw,32px);font-variant-numeric:tabular-nums}.flat{color:#b6c4da!important}.up{color:var(--green)!important}.down{color:var(--red)!important}
+.finance-note{color:#adbed7;font-size:12px;line-height:1.6;margin:13px 0 0}.reference-note{color:#93a5c2;font-size:11px;line-height:1.6;margin:10px 0 0;border-top:1px solid #2b3b51;padding-top:11px}
+.insight-finance-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;padding:12px 20px}.insight-finance-grid>div{background:#0c1b2e;border:1px solid #263954;border-radius:11px;padding:14px 12px;min-width:0}.insight-finance-grid strong{display:block;font-size:clamp(17px,2vw,24px);font-variant-numeric:tabular-nums}
+#asset-intelligence>.finance-note{margin:0 22px 14px}
+.mobile-finance{border-top:1px solid #30425d;padding-top:10px;margin-top:12px}.mobile-finance-label{font-size:10px;font-weight:800;letter-spacing:.04em;color:#91a9c7;margin-bottom:5px}.mobile-finance-value{font-size:14px;line-height:1.6;font-weight:800;font-variant-numeric:tabular-nums}
+@media(max-width:680px){.hero-meta .hint{display:block}.finance-panel{margin-bottom:14px;padding:18px 15px}.finance-head h2{font-size:16px}.finance-values{gap:8px}.finance-item{padding:12px 11px}.finance-item strong{font-size:clamp(16px,4.8vw,23px)}.finance-item small{font-size:9px}.finance-note{font-size:12px}.reference-note{font-size:11px}.chart-wrap{height:290px!important}.insight-finance-grid{padding:12px;gap:7px}.insight-finance-grid>div{padding:11px 8px}.insight-finance-grid small{font-size:9px}.insight-finance-grid strong{font-size:clamp(13px,4vw,18px)}.mobile-coin{padding:16px 16px;line-height:1.4}.mobile-coin .coin-value{font-size:18px}.mobile-coin .ticker{font-size:17px}.mobile-finance-value{font-size:14px}}
