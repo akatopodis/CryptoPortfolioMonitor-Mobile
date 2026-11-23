@@ -10,7 +10,7 @@
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" type="image/png" sizes="192x192" href="./assets/icon-192.png">
   <link rel="apple-touch-icon" href="./assets/icon-192.png">
-  <link rel="stylesheet" href="./styles.css?v=13.5">
+  <link rel="stylesheet" href="./styles.css?v=13.6">
   <title>Crypto Portfolio — Cloud</title>
 </head>
 <body>
@@ -18,7 +18,7 @@
     <header class="topbar">
       <div class="brand">
         <div class="mark">C<span>↗</span></div>
-        <div><strong>CRYPTO <span>PORTFOLIO</span></strong><small>PREMIUM STUDIO · V13.5</small></div>
+        <div><strong>CRYPTO <span>PORTFOLIO</span></strong><small>PREMIUM STUDIO · V13.6</small></div>
       </div>
       <div class="top-actions"><span class="top-status" id="status"><i></i> Αποσυνδεδεμένο</span><button id="refresh" class="icon-btn" type="button" aria-label="Ανανέωση τιμών" title="Ανανέωση τιμών"><span aria-hidden="true">↻</span></button><button id="lock" class="icon-btn" type="button" title="Έξοδος" aria-label="Έξοδος"><span aria-hidden="true">⏻</span></button></div>
     </header>
@@ -46,6 +46,12 @@
         </div>
         <p class="finance-note" id="cost-sync-notice">Αναμονή στοιχείων κόστους.</p>
         <p id="reference-note" class="reference-note">Η μεταβολή βάσης αναφοράς δεν είναι αποτέλεσμα αγοράς.</p>
+      </section>
+      <section class="market-brief" id="market-brief" aria-label="Σύνοψη αγοράς">
+        <div class="market-brief-header"><div><span class="eyebrow">PORTFOLIO INTELLIGENCE</span><h2>Η εικόνα της αγοράς</h2></div><span id="brief-freshness" class="freshness-tag">—</span></div>
+        <div class="brief-metrics"><div><small>ΑΝΟΔΙΚΑ / ΠΤΩΤΙΚΑ 24ΩΡΟΥ</small><strong id="brief-breadth">—</strong></div><div><small>ΙΣΧΥΡΟΤΕΡΗ ΚΙΝΗΣΗ 24ΩΡΟΥ</small><strong id="brief-mover">—</strong></div><div><small>ΣΥΓΚΕΝΤΡΩΣΗ TOP 3</small><strong id="brief-concentration">—</strong></div></div>
+        <div class="brief-allocation" id="brief-allocation" aria-label="Ποσοστιαία κατανομή χαρτοφυλακίου"></div>
+        <p class="brief-note">Εκτιμήσεις μόνο από τις πραγματικές τιμές του ιδιωτικού Cloud. Δεν αποτελούν οδηγίες συναλλαγών.</p>
       </section>
       <section class="panel chart-panel" id="performance">
         <div class="section-head"><div><p class="eyebrow">PERFORMANCE  /  REAL HISTORY</p><h2>Ιστορικό αποτίμησης</h2></div><div class="legend"><span class="legend-dot"></span> <span id="chart-currency">USD</span></div></div>
@@ -91,6 +97,9 @@
       </section>
       <footer><div><i class="live-dot"></i> Ιδιωτικά δεδομένα · Read-only από GitHub</div><div id="footer-update">—</div></footer>
     </main>
+    <nav id="mobile-dock" class="mobile-dock" aria-label="Πλοήγηση εφαρμογής" hidden>
+      <a href="#overview"><span>◈</span>Αρχική</a><a href="#performance"><span>⌁</span>Γράφημα</a><a href="#asset-intelligence"><span>◎</span>Ανάλυση</a><a href="#holdings"><span>▤</span>Coins</a>
+    </nav>
 
     <section id="login-screen" class="login-screen">
       <div class="login-card">
@@ -103,6 +112,6 @@
       <div class="login-art"><div class="art-grid"></div><div class="art-words"><p>ALWAYS CONNECTED</p><h2>YOUR ASSETS.<br><span>YOUR CONTROL.</span></h2><small>LIVE CLOUD SNAPSHOT · 24/7 ACCESS</small></div></div>
     </section>
   </div>
-  <script src="./app.js?v=13.5" defer></script>
+  <script src="./app.js?v=13.6" defer></script>
 </body>
 </html>
