@@ -134,3 +134,28 @@ footer{padding-top:19px}
 #asset-intelligence>.finance-note{margin:0 22px 14px}
 .mobile-finance{border-top:1px solid #30425d;padding-top:10px;margin-top:12px}.mobile-finance-label{font-size:10px;font-weight:800;letter-spacing:.04em;color:#91a9c7;margin-bottom:5px}.mobile-finance-value{font-size:14px;line-height:1.6;font-weight:800;font-variant-numeric:tabular-nums}
 @media(max-width:680px){.hero-meta .hint{display:block}.finance-panel{margin-bottom:14px;padding:18px 15px}.finance-head h2{font-size:16px}.finance-values{gap:8px}.finance-item{padding:12px 11px}.finance-item strong{font-size:clamp(16px,4.8vw,23px)}.finance-item small{font-size:9px}.finance-note{font-size:12px}.reference-note{font-size:11px}.chart-wrap{height:290px!important}.insight-finance-grid{padding:12px;gap:7px}.insight-finance-grid>div{padding:11px 8px}.insight-finance-grid small{font-size:9px}.insight-finance-grid strong{font-size:clamp(13px,4vw,18px)}.mobile-coin{padding:16px 16px;line-height:1.4}.mobile-coin .coin-value{font-size:18px}.mobile-coin .ticker{font-size:17px}.mobile-finance-value{font-size:14px}}
+
+/* 13.6 · Mobile-first dashboard upgrades. No private holdings are bundled. */
+.market-brief{padding:21px 24px;margin:0 0 20px;background:linear-gradient(140deg,#172843,#111c31);border:1px solid #314765;border-radius:19px}
+.market-brief-header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.market-brief-header h2{font-size:20px;margin:5px 0 0}.freshness-tag{font-size:10px;font-weight:800;color:#6ff0c6;border:1px solid #216e62;background:#0e3934;padding:7px 11px;border-radius:99px;white-space:nowrap}
+.freshness-tag.stale{color:#ffbe8a;border-color:#965c38;background:#352418}
+.brief-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:17px 0}
+.brief-metrics>div{background:#0d1b2e;border:1px solid #273c57;border-radius:13px;padding:15px;min-width:0}
+.brief-metrics small{font-size:10px;font-weight:800;line-height:1.45;color:#91a8c5;display:block;margin-bottom:8px}
+.brief-metrics strong{font-size:clamp(14px,2.2vw,21px);overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+.brief-allocation-bar{display:flex;overflow:hidden;border-radius:8px;height:13px;background:#243750}
+.brief-segment{height:100%;flex-shrink:0}.brief-allocation-legend{display:flex;flex-wrap:wrap;gap:8px 16px;margin-top:13px}
+.brief-legend-item{display:flex;align-items:center;gap:6px;font-size:11px;color:#c2d3eb;font-weight:700}.brief-dot{width:9px;height:9px;border-radius:3px;flex-shrink:0}
+.brief-note{margin:15px 0 0;font-size:11px;color:#8ea5c3;line-height:1.5}
+.mobile-dock{display:none}
+@media(max-width:680px){
+  .market-brief{padding:17px 14px;margin-bottom:14px;border-radius:16px}.market-brief-header h2{font-size:17px}
+  .brief-metrics{gap:7px;margin:13px 0}.brief-metrics>div{padding:12px 9px}.brief-metrics small{font-size:8px;min-height:26px}.brief-metrics strong{font-size:14px}
+  .brief-allocation-legend{gap:9px 10px}.brief-legend-item{font-size:10px}
+  main{padding-bottom:calc(98px + env(safe-area-inset-bottom))!important}
+  .mobile-dock:not([hidden]){position:fixed;bottom:0;left:0;right:0;z-index:100;display:grid;grid-template-columns:repeat(4,1fr);background:#0e1a2deF;border-top:1px solid #334664;backdrop-filter:blur(16px);padding:7px 5px calc(7px + env(safe-area-inset-bottom));box-shadow:0 -7px 24px #0006}
+  .mobile-dock a{min-height:52px;text-decoration:none;color:#aebed9;font-size:10px;font-weight:750;display:flex;gap:4px;align-items:center;justify-content:center;flex-direction:column;border-radius:9px}
+  .mobile-dock a:focus-visible,.mobile-dock a:hover{color:#fff;background:#263a57}
+  .mobile-dock a span{font-size:22px;line-height:1.1}
+}
