@@ -159,3 +159,10 @@ footer{padding-top:19px}
   .mobile-dock a:focus-visible,.mobile-dock a:hover{color:#fff;background:#263a57}
   .mobile-dock a span{font-size:22px;line-height:1.1}
 }
+
+/* 13.7 · Explicit live-vs-cloud provenance, no fabricated history. */
+.market-source-line{display:flex;flex-wrap:wrap;align-items:center;gap:7px 10px;margin-top:9px;color:#adc2dc;font-size:11px;line-height:1.5}
+.market-source{border-radius:99px;padding:4px 9px;border:1px solid #52617a;color:#c9d8eb;background:#192841;font-weight:800;letter-spacing:.03em;white-space:nowrap}
+.market-source.live{background:#0a3c35;border-color:#1c8a72;color:#63e6b8}
+#market-message{overflow-wrap:anywhere;flex:1;min-width:180px}
+@media(max-width:600px){.market-source-line{font-size:10px;gap:6px}#market-message{min-width:100%}}
