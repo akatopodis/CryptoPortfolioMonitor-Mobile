@@ -2,6 +2,8 @@
 const REPOSITORY = 'akatopodis/CryptoPortfolioMonitor';
 const SNAPSHOT_URL = `https://api.github.com/repos/${REPOSITORY}/contents/cloud/snapshot.json`;
 const VERIFY_URL = `https://api.github.com/repos/${REPOSITORY}/contents/portfolio.json`;
+// This file is PRIVATE. Never put positions or prices paid into the public PWA repository.
+const BASIS_URL = `https://api.github.com/repos/${REPOSITORY}/contents/cloud/cost_basis.json`;
 const SESSION_KEY='cpm_pwa_session_token_v1';
 const VAULT_KEY='cpm_pwa_encrypted_token_v1';
 const dom = Object.fromEntries([
@@ -10,15 +12,57 @@ const dom = Object.fromEntries([
  'eur-btn','history-chart','chart-wrap','chart-tooltip','chart-placeholder','chart-range','chart-currency',
  'chart-reset','chart-zoom-in','chart-zoom-out','chart-detail','chart-stats','token','remember','remember-pass-wrap','remember-pass','connect','login-error','setup-section',
  'unlock-section','unlock-pass','unlock','use-new-token',
- 'analysis-select','insight-usd','insight-eur','insight-share','insight-day','insight-caption-share','insight-focus-title','insight-note'
+ 'analysis-select','insight-usd','insight-eur','insight-share','insight-day','insight-caption-share','insight-focus-title','insight-note',
+ 'reference-note','result-usd','result-eur','result-coverage','cost-sync-notice',
+ 'insight-result-usd','insight-result-eur','insight-result-pct','insight-result-info'
 ].map(id=>[id,document.getElementById(id)]));
-const state = {token:'', snapshot:null, currency:'USD', busy:false, chartPoints:[], chartBounds:null, selectedPoint:-1,chartDays:7,chartZoom:1};
+const state = {token:'', snapshot:null, costBasis:null, currency:'USD', busy:false, chartPoints:[], chartBounds:null, selectedPoint:-1,chartDays:7,chartZoom:1};
 // Gesture state lives only in the browser; it never changes the portfolio or cloud records.
 const chartPinch = {active:false, distance:0, zoomAtStart:1};
 const fmtNum=(v,max=2)=>new Intl.NumberFormat('el-GR',{maximumFractionDigits:max,minimumFractionDigits:max}).format(Number(v));
 function money(value){if(value==null||!Number.isFinite(+value))return '—';const n=+value;return (state.currency==='USD'?'$':'€')+fmtNum(n,2);}
 function priceFmt(value){if(value==null||!Number.isFinite(+value))return '—';const n=+value;const decimals=n<.0001?8:n<.01?6:n<1?5:2;return (state.currency==='USD'?'$':'€')+new Intl.NumberFormat('el-GR',{maximumFractionDigits:decimals}).format(n);}
 function percent(v){if(v==null||!Number.isFinite(+v))return '—';return (+v>=0?'+':'')+fmtNum(v,2)+'%';}
+function signedMoney(v,currency='USD'){
+  if(v==null||!Number.isFinite(v))return '—';
+  return (v<0?'−':v>0?'+':'')+(currency==='USD'?'$':'€')+fmtNum(Math.abs(v),2);
+}
+function asPositiveNumber(v){return typeof v==='number'&&Number.isFinite(v)&&v>0?v:null;}
+function validateCostBasis(data){
+  if(!data||data.schema!==1||typeof data.cost_usd!=='object'||data.cost_usd===null||Array.isArray(data.cost_usd))throw Error('Μη έγκυρα δεδομένα κόστους στο ιδιωτικό GitHub.');
+  const safe={};
+  for(const [sym,raw] of Object.entries(data.cost_usd)){
+    if(!/^[A-Z0-9]{2,16}$/.test(sym))continue;
+    const x=asPositiveNumber(raw);
+    if(x!==null)safe[sym]=x;
+  }
+  return {schema:1,cost_usd:safe,updated_at:typeof data.updated_at==='string'?data.updated_at:null};
+}
+async function getOptionalCostBasis(token){
+  try{return validateCostBasis(await getPrivateJson(token,BASIS_URL));}
+  catch(error){if(error.code==='not_found')return null;throw error;}
+}
+// Uses the SAME full-position average purchase price as the Windows desktop.
+// EUR is a current-FX translation (NOT historical EUR acquisition cost).
+function coinCostResult(coin){
+  const avg=state.costBasis?.cost_usd?.[coin.symbol];
+  if(asPositiveNumber(avg)===null||!(Number(coin.amount)>0)||!(Number(coin.price_usd)>0)||!(Number(coin.price_eur)>0))return null;
+  const qty=Number(coin.amount),usd=qty*(Number(coin.price_usd)-avg);
+  return {usd,eur:usd*(Number(coin.price_eur)/Number(coin.price_usd)),
+    invested:qty*avg,qty,avg};
+}
+function portfolioCostResult(){
+  const coins=state.snapshot?.coins||[];let usd=0,eur=0,invested=0,covered=0,missing=[];
+  for(const c of coins){
+    if(!(Number(c.amount)>0))continue;
+    const entry=coinCostResult(c);
+    if(entry){usd+=entry.usd;eur+=entry.eur;invested+=entry.invested;covered++;}
+    else missing.push(c.symbol);
+  }
+  return {usd,eur,invested,covered,missing,complete:covered>0&&!missing.length,
+    percent:invested>0?usd/invested*100:null};
+}
+
 function direction(v){return v==null||!Number.isFinite(+v)?'flat':+v>0?'up':+v<0?'down':'flat';}
 function text(id,value){dom[id].textContent=value;}
 function div(cls,value){const e=document.createElement('div');if(cls)e.className=cls;if(value!==undefined)e.textContent=value;return e;}
@@ -74,10 +118,14 @@ async function beginSession(token,rememberPassword=''){
       }
       throw e;
     }
+    let costBasis=null, costBasisError='';
+    try{costBasis=await getOptionalCostBasis(token);}catch(err){costBasisError=err.message||'Αδυναμία ανάγνωσης στοιχείων αγοράς';}
     if(rememberPassword){await storeEncryptedToken(token,rememberPassword);}
     state.token=token;
     sessionStorage.setItem(SESSION_KEY,token);
     state.snapshot=snapshot;
+    state.costBasis=costBasis;
+    state.costBasisError=costBasisError;
     dom['login-screen'].hidden=true;dom.dashboard.hidden=false;
     render();
   }catch(e){setStatus('fail','Αποσυνδεδεμένο');showError(e.message||'Αποτυχία σύνδεσης.');}
@@ -91,12 +139,22 @@ function render(){
   setStatus(ageMinutes>45?'warn':'online',ageMinutes>45?'Παλιές τιμές':'Cloud online');
   text('last-updated','Τελευταία cloud καταγραφή: '+new Date(s.updated_at).toLocaleString('el-GR',{dateStyle:'medium',timeStyle:'short'})+(ageMinutes>45?' · ΠΑΛΙΕΣ ΤΙΜΕΣ':''));
   text('total',money(s.total[isUSD?'usd':'eur']));
-  const difference=isUSD?s.total.change_from_baseline_usd:s.total.change_from_baseline_eur_est;
-  const pct=s.total.change_from_baseline_pct;
-  dom['total-change'].className='movement '+direction(pct);
-  // Display signed currency amount without making misleading FX conversions.
-  const signedAmount=(difference>=0?'+':'−')+money(Math.abs(difference));
-  text('total-change',percent(pct)+' · '+signedAmount);
+  const report=portfolioCostResult();
+  // The reference baseline is NOT purchase cost, and must NEVER look like P/L.
+  const delta=isUSD?s.total.change_from_baseline_usd:s.total.change_from_baseline_eur_est;
+  text('reference-note','Μεταβολή από βάση αναφοράς (όχι από τιμές αγοράς): '+percent(s.total.change_from_baseline_pct)+' · '+signedMoney(delta,state.currency));
+  dom['reference-note'].className='reference-note';
+  dom['total-change'].className='movement '+(report.covered?direction(report.usd):'flat');
+  text('total-change',report.covered?(signedMoney(isUSD?report.usd:report.eur,state.currency)+' · '+percent(report.percent)+(report.complete?'':' · ΜΕΡΙΚΟ')):'Δεν υπάρχουν στοιχεία κόστους');
+  text('result-usd',report.covered?signedMoney(report.usd,'USD'):'—');
+  text('result-eur',report.covered?signedMoney(report.eur,'EUR'):'—');
+  dom['result-usd'].className=report.covered?direction(report.usd):'flat';
+  dom['result-eur'].className=report.covered?direction(report.eur):'flat';
+  text('result-coverage',report.covered+'/'+(report.covered+report.missing.length)+' θέσεις'+(report.complete?' · ΣΥΝΟΛΟ':' · ΜΕΡΙΚΟ'));
+  text('cost-sync-notice',report.complete?'Υπολογισμός με μέση τιμή αγοράς ανά coin. EUR: μετατροπή με τρέχουσα ισοτιμία.':
+    (report.covered?'Λείπουν τιμές αγοράς: '+report.missing.join(', ')+'. Εμφανίζεται μόνο το γνωστό μέρος.':
+      'Δεν έχουν συγχρονιστεί τιμές αγοράς από τα Windows. Η μεταβολή από βάση αναφοράς δεν είναι οικονομικό αποτέλεσμα.')+
+    (state.costBasisError?' · GitHub: '+state.costBasisError:''));
   text('daily-change',percent(s.total.day_pct_est));dom['daily-change'].className=direction(s.total.day_pct_est);
   text('coin-count',String(s.coins.length));text('small-count',String(s.coins.length));text('source','CoinGecko · GitHub Actions');
   text('footer-update','Cloud: '+new Date(s.updated_at).toLocaleString('el-GR'));
@@ -133,6 +191,17 @@ function renderInsights(){
     text('insight-focus-title',coin.symbol+'  /  ASSET DETAIL');
     text('insight-note','Ποσότητα '+fmtNum(coin.amount,coin.amount<1?6:4)+' · Τιμή '+priceFmt(coin[currency==='USD'?'price_usd':'price_eur'])+' · Το παραπάνω γράφημα είναι του συνόλου.');
   }
+  // Actual purchase-cost results for the selected scope; never infer from baseline.
+  const report=coin?coinCostResult(coin):portfolioCostResult();
+  const known=coin?!!report:report.covered>0;
+  const result=coin?report:report;
+  text('insight-result-usd',known?signedMoney(result.usd,'USD'):'—');
+  text('insight-result-eur',known?signedMoney(result.eur,'EUR'):'—');
+  text('insight-result-pct',known?percent(coin?result.usd/result.invested*100:result.percent):'—');
+  for(const id of ['insight-result-usd','insight-result-eur','insight-result-pct'])dom[id].className=known?direction(result.usd):'flat';
+  text('insight-result-info',known?(coin?'Από μέση τιμή αγοράς '+coin.symbol+' (USD) · EUR στην τρέχουσα ισοτιμία':
+    (report.complete?'Αποτέλεσμα όλων των θέσεων':'ΜΕΡΙΚΟ '+report.covered+'/'+(report.covered+report.missing.length)+' · Λείπουν: '+report.missing.join(', '))):
+    (coin?'Δεν υπάρχει τιμή αγοράς για το '+coin.symbol:'Δεν υπάρχουν διαθέσιμα στοιχεία κόστους.'));
 }
 function getSortedCoins(){
   const filtered=state.snapshot.coins.filter(c=>c.symbol.toLowerCase().includes(dom.search.value.trim().toLowerCase()));
@@ -159,7 +228,13 @@ function renderCoins(){
     const head=div('mobile-top');const left=div();left.append(div('ticker',c.symbol),div('mobile-amount',amount+' '+c.symbol));
     const right=div();right.style.textAlign='right';right.append(div('coin-value',value),div('coin-sub',fmtNum(c.weight_pct,1)+'% κατανομή'));
     head.append(left,right);
-    const bottom=div('mobile-bottom');bottom.append(div('mobile-price','Τιμή: '+price),div('day '+dir,day));card.append(head,bottom);mobile.append(card);
+    const bottom=div('mobile-bottom');bottom.append(div('mobile-price','Τιμή: '+price),div('day '+dir,day));card.append(head,bottom);
+    const cost=coinCostResult(c);
+    const finance=div('mobile-finance');
+    finance.append(div('mobile-finance-label','ΑΠΟΤΕΛΕΣΜΑ ΑΠΟ ΤΙΜΗ ΑΓΟΡΑΣ'),
+      div('mobile-finance-value '+(cost?direction(cost.usd):'flat'),
+        cost?signedMoney(cost.usd,'USD')+'  /  '+signedMoney(cost.eur,'EUR'):'— · Χωρίς τιμή αγοράς'));
+    card.append(finance);mobile.append(card);
   });
   if(!coins.length){desktop.append(div('empty-list','Δεν βρέθηκαν νομίσματα.'));mobile.append(div('empty-list','Δεν βρέθηκαν νομίσματα.'));}
   dom['coins-desktop'].replaceChildren(desktop);dom['coins-mobile'].replaceChildren(mobile);
@@ -249,11 +324,16 @@ function chartInteract(event){
 }
 async function refresh(){
   if(state.busy||!state.token)return;state.busy=true;dom.refresh.disabled=true;
-  try{state.snapshot=validateSnapshot(await getPrivateJson(state.token,SNAPSHOT_URL));render();}
+  try{
+    const latest=validateSnapshot(await getPrivateJson(state.token,SNAPSHOT_URL));
+    let basis=null,error='';
+    try{basis=await getOptionalCostBasis(state.token);}catch(e){error=e.message||'Σφάλμα λήψης τιμών αγοράς';}
+    state.snapshot=latest;state.costBasis=basis;state.costBasisError=error;render();
+  }
   catch(e){setStatus('fail','Σφάλμα Cloud');text('last-updated','Δεν ήταν δυνατή η νέα λήψη: '+e.message+' · Προβάλλονται οι τελευταίες τιμές');}
   finally{state.busy=false;dom.refresh.disabled=false;}
 }
-function logout(){sessionStorage.removeItem(SESSION_KEY);localStorage.removeItem(VAULT_KEY);state.token='';state.snapshot=null;dom.dashboard.hidden=true;dom['login-screen'].hidden=false;dom.token.value='';dom['unlock-pass'].value='';dom['remember-pass'].value='';dom.remember.checked=false;dom['remember-pass-wrap'].hidden=true;dom['setup-section'].hidden=false;dom['unlock-section'].hidden=true;clearError();setStatus('','Αποσυνδεδεμένο');}
+function logout(){sessionStorage.removeItem(SESSION_KEY);localStorage.removeItem(VAULT_KEY);state.token='';state.snapshot=null;state.costBasis=null;dom.dashboard.hidden=true;dom['login-screen'].hidden=false;dom.token.value='';dom['unlock-pass'].value='';dom['remember-pass'].value='';dom.remember.checked=false;dom['remember-pass-wrap'].hidden=true;dom['setup-section'].hidden=false;dom['unlock-section'].hidden=true;clearError();setStatus('','Αποσυνδεδεμένο');}
 dom.connect.addEventListener('click',()=>{const token=dom.token.value.trim();if(!token){showError('Συμπλήρωσε το GitHub token.');return;}const password=dom.remember.checked?dom['remember-pass'].value:'';if(dom.remember.checked&&password.length<8){showError('Ο κωδικός αποθήκευσης πρέπει να έχει τουλάχιστον 8 χαρακτήρες.');return;}beginSession(token,password);});
 dom.token.addEventListener('keydown',e=>{if(e.key==='Enter')dom.connect.click()});
 dom.remember.addEventListener('change',()=>dom['remember-pass-wrap'].hidden=!dom.remember.checked);
