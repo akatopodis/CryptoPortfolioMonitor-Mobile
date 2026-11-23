@@ -6,11 +6,11 @@
   <meta name="theme-color" content="#0b1424">
   <meta name="color-scheme" content="dark">
   <meta name="description" content="Ιδιωτική προβολή του Crypto Portfolio Monitor από το κινητό, με κλειστό υπολογιστή.">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' https://api.github.com; img-src 'self' data:; style-src 'self'; script-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' https://api.github.com https://api.coingecko.com; img-src 'self' data:; style-src 'self'; script-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'">
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" type="image/png" sizes="192x192" href="./assets/icon-192.png">
   <link rel="apple-touch-icon" href="./assets/icon-192.png">
-  <link rel="stylesheet" href="./styles.css?v=13.6">
+  <link rel="stylesheet" href="./styles.css?v=13.7">
   <title>Crypto Portfolio — Cloud</title>
 </head>
 <body>
@@ -18,7 +18,7 @@
     <header class="topbar">
       <div class="brand">
         <div class="mark">C<span>↗</span></div>
-        <div><strong>CRYPTO <span>PORTFOLIO</span></strong><small>PREMIUM STUDIO · V13.6</small></div>
+        <div><strong>CRYPTO <span>PORTFOLIO</span></strong><small>PREMIUM STUDIO · V13.7</small></div>
       </div>
       <div class="top-actions"><span class="top-status" id="status"><i></i> Αποσυνδεδεμένο</span><button id="refresh" class="icon-btn" type="button" aria-label="Ανανέωση τιμών" title="Ανανέωση τιμών"><span aria-hidden="true">↻</span></button><button id="lock" class="icon-btn" type="button" title="Έξοδος" aria-label="Έξοδος"><span aria-hidden="true">⏻</span></button></div>
     </header>
@@ -31,7 +31,7 @@
         <a href="#holdings">▤  Νομίσματα</a>
       </nav>
       <section class="headline" id="overview">
-        <div><p class="eyebrow">ULTIMATE STUDIO  /  CLOUD OVERVIEW</p><h1>Η συνολική εικόνα <span class="premium-asterisk">✦</span></h1><p class="muted last-updated" id="last-updated">—</p></div>
+        <div><p class="eyebrow">ULTIMATE STUDIO  /  CLOUD OVERVIEW</p><h1>Η συνολική εικόνα <span class="premium-asterisk">✦</span></h1><p class="muted last-updated" id="last-updated">—</p><div class="market-source-line"><span id="market-source" class="market-source">CLOUD SNAPSHOT · GitHub</span><span id="market-message">Αναμονή ζωντανών τιμών</span></div></div>
         <div class="currency-switch" role="group" aria-label="Νόμισμα"><button type="button" id="usd-btn" class="active">USD</button><button type="button" id="eur-btn">EUR</button></div>
       </section>
       <section class="hero-grid">
@@ -112,6 +112,6 @@
       <div class="login-art"><div class="art-grid"></div><div class="art-words"><p>ALWAYS CONNECTED</p><h2>YOUR ASSETS.<br><span>YOUR CONTROL.</span></h2><small>LIVE CLOUD SNAPSHOT · 24/7 ACCESS</small></div></div>
     </section>
   </div>
-  <script src="./app.js?v=13.6" defer></script>
+  <script src="./app.js?v=13.7" defer></script>
 </body>
 </html>
