@@ -14,7 +14,8 @@ const dom = Object.fromEntries([
  'unlock-section','unlock-pass','unlock','use-new-token',
  'analysis-select','insight-usd','insight-eur','insight-share','insight-day','insight-caption-share','insight-focus-title','insight-note',
  'reference-note','result-usd','result-eur','result-coverage','cost-sync-notice',
- 'insight-result-usd','insight-result-eur','insight-result-pct','insight-result-info'
+ 'insight-result-usd','insight-result-eur','insight-result-pct','insight-result-info',
+ 'brief-freshness','brief-breadth','brief-mover','brief-concentration','brief-allocation','mobile-dock'
 ].map(id=>[id,document.getElementById(id)]));
 const state = {token:'', snapshot:null, costBasis:null, currency:'USD', busy:false, chartPoints:[], chartBounds:null, selectedPoint:-1,chartDays:7,chartZoom:1};
 // Gesture state lives only in the browser; it never changes the portfolio or cloud records.
@@ -126,7 +127,7 @@ async function beginSession(token,rememberPassword=''){
     state.snapshot=snapshot;
     state.costBasis=costBasis;
     state.costBasisError=costBasisError;
-    dom['login-screen'].hidden=true;dom.dashboard.hidden=false;
+    dom['login-screen'].hidden=true;dom.dashboard.hidden=false;dom['mobile-dock'].hidden=false;
     render();
   }catch(e){setStatus('fail','Αποσυνδεδεμένο');showError(e.message||'Αποτυχία σύνδεσης.');}
   finally{state.busy=false;dom.connect.disabled=false;dom.unlock.disabled=false;}
@@ -159,10 +160,41 @@ function render(){
   text('coin-count',String(s.coins.length));text('small-count',String(s.coins.length));text('source','CoinGecko · GitHub Actions');
   text('footer-update','Cloud: '+new Date(s.updated_at).toLocaleString('el-GR'));
   text('chart-currency',state.currency);
-  renderCoins();renderInsights();drawChart();
+  renderCoins();renderInsights();renderMarketBrief();drawChart();
 }
 // Per-coin insights are computed from the authenticated private snapshot only.
 // The public PWA shell ships no holdings, tokens or fabricated coin history.
+// Read-only analytics: computed from the currently authenticated snapshot.
+function renderMarketBrief(){
+  const snapshot=state.snapshot;if(!snapshot)return;
+  const coins=snapshot.coins.filter(c=>Number.isFinite(+c.value_usd)&&+c.value_usd>=0);
+  const sorted=[...coins].sort((a,b)=>+b.value_usd-+a.value_usd);
+  const valid=coins.filter(c=>typeof c.day_pct==='number'&&Number.isFinite(c.day_pct));
+  const rising=valid.filter(c=>c.day_pct>0).length, falling=valid.filter(c=>c.day_pct<0).length;
+  text('brief-breadth',rising+' ↑ / '+falling+' ↓'+(valid.length<coins.length?' · '+(coins.length-valid.length)+' χωρίς στοιχεία':''));
+  const mover=[...valid].sort((a,b)=>Math.abs(b.day_pct)-Math.abs(a.day_pct))[0];
+  text('brief-mover',mover?mover.symbol+' '+percent(mover.day_pct):'Χωρίς διαθέσιμη μεταβολή');
+  dom['brief-mover'].className=mover?direction(mover.day_pct):'flat';
+  const total=sorted.reduce((sum,c)=>sum+Number(c.value_usd),0);
+  const top=sorted.slice(0,3).reduce((sum,c)=>sum+Number(c.value_usd),0);
+  text('brief-concentration',total>0?fmtNum(top/total*100,1)+'%':'—');
+  const updated=Date.parse(snapshot.updated_at);
+  const age=(Date.now()-updated)/60000,stale=!Number.isFinite(age)||age>45;
+  text('brief-freshness',stale?'ΠΑΛΙΕΣ ΤΙΜΕΣ':'ΕΝΗΜΕΡΩΜΕΝΟ');
+  dom['brief-freshness'].classList.toggle('stale',stale);
+  const wrap=dom['brief-allocation'];wrap.replaceChildren();
+  if(total<=0)return;
+  const colors=['#669cf8','#34d5a2','#fac666','#ae91ff','#f78491','#49c7e0','#f0a178','#c0d477','#f27abf','#7a93a8'];
+  const bar=div('brief-allocation-bar');const legend=div('brief-allocation-legend');
+  sorted.forEach((c,i)=>{
+    const pct=100*Number(c.value_usd)/total;
+    const piece=div('brief-segment');piece.style.width=pct+'%';piece.style.background=colors[i%colors.length];
+    piece.title=c.symbol+' '+fmtNum(pct,2)+'%';bar.append(piece);
+    const item=div('brief-legend-item');const dot=div('brief-dot');dot.style.background=colors[i%colors.length];
+    item.append(dot,div('',c.symbol+' '+fmtNum(pct,1)+'%'));legend.append(item);
+  });
+  wrap.append(bar,legend);
+}
 function renderInsights(){
   const s=state.snapshot;if(!s)return;
   const select=dom['analysis-select'];const requested=select.value||'portfolio';
@@ -333,7 +365,7 @@ async function refresh(){
   catch(e){setStatus('fail','Σφάλμα Cloud');text('last-updated','Δεν ήταν δυνατή η νέα λήψη: '+e.message+' · Προβάλλονται οι τελευταίες τιμές');}
   finally{state.busy=false;dom.refresh.disabled=false;}
 }
-function logout(){sessionStorage.removeItem(SESSION_KEY);localStorage.removeItem(VAULT_KEY);state.token='';state.snapshot=null;state.costBasis=null;dom.dashboard.hidden=true;dom['login-screen'].hidden=false;dom.token.value='';dom['unlock-pass'].value='';dom['remember-pass'].value='';dom.remember.checked=false;dom['remember-pass-wrap'].hidden=true;dom['setup-section'].hidden=false;dom['unlock-section'].hidden=true;clearError();setStatus('','Αποσυνδεδεμένο');}
+function logout(){sessionStorage.removeItem(SESSION_KEY);localStorage.removeItem(VAULT_KEY);state.token='';state.snapshot=null;state.costBasis=null;dom.dashboard.hidden=true;dom['mobile-dock'].hidden=true;dom['login-screen'].hidden=false;dom.token.value='';dom['unlock-pass'].value='';dom['remember-pass'].value='';dom.remember.checked=false;dom['remember-pass-wrap'].hidden=true;dom['setup-section'].hidden=false;dom['unlock-section'].hidden=true;clearError();setStatus('','Αποσυνδεδεμένο');}
 dom.connect.addEventListener('click',()=>{const token=dom.token.value.trim();if(!token){showError('Συμπλήρωσε το GitHub token.');return;}const password=dom.remember.checked?dom['remember-pass'].value:'';if(dom.remember.checked&&password.length<8){showError('Ο κωδικός αποθήκευσης πρέπει να έχει τουλάχιστον 8 χαρακτήρες.');return;}beginSession(token,password);});
 dom.token.addEventListener('keydown',e=>{if(e.key==='Enter')dom.connect.click()});
 dom.remember.addEventListener('change',()=>dom['remember-pass-wrap'].hidden=!dom.remember.checked);
