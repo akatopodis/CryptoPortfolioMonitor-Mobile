@@ -9,7 +9,8 @@ const dom = Object.fromEntries([
  'coin-count','source','small-count','coins-desktop','coins-mobile','search','sort','footer-update','usd-btn',
  'eur-btn','history-chart','chart-wrap','chart-tooltip','chart-placeholder','chart-range','chart-currency',
  'chart-reset','chart-zoom-in','chart-zoom-out','chart-detail','chart-stats','token','remember','remember-pass-wrap','remember-pass','connect','login-error','setup-section',
- 'unlock-section','unlock-pass','unlock','use-new-token'
+ 'unlock-section','unlock-pass','unlock','use-new-token',
+ 'analysis-select','insight-usd','insight-eur','insight-share','insight-day','insight-caption-share','insight-focus-title','insight-note'
 ].map(id=>[id,document.getElementById(id)]));
 const state = {token:'', snapshot:null, currency:'USD', busy:false, chartPoints:[], chartBounds:null, selectedPoint:-1,chartDays:7,chartZoom:1};
 // Gesture state lives only in the browser; it never changes the portfolio or cloud records.
@@ -100,7 +101,38 @@ function render(){
   text('coin-count',String(s.coins.length));text('small-count',String(s.coins.length));text('source','CoinGecko · GitHub Actions');
   text('footer-update','Cloud: '+new Date(s.updated_at).toLocaleString('el-GR'));
   text('chart-currency',state.currency);
-  renderCoins();drawChart();
+  renderCoins();renderInsights();drawChart();
+}
+// Per-coin insights are computed from the authenticated private snapshot only.
+// The public PWA shell ships no holdings, tokens or fabricated coin history.
+function renderInsights(){
+  const s=state.snapshot;if(!s)return;
+  const select=dom['analysis-select'];const requested=select.value||'portfolio';
+  const names=s.coins.map(c=>c.symbol);
+  if(select.options.length!==names.length+1||names.some((n,i)=>select.options[i+1]?.value!==n)){
+    select.replaceChildren();
+    const all=document.createElement('option');all.value='portfolio';all.textContent='Σύνολο χαρτοφυλακίου';select.append(all);
+    for(const sym of names){const o=document.createElement('option');o.value=sym;o.textContent=sym+' · ανάλυση';select.append(o);}
+    select.value=names.includes(requested)?requested:'portfolio';
+  }
+  const currency=state.currency,coin=s.coins.find(c=>c.symbol===select.value);
+  if(!coin){
+    text('insight-usd','$'+fmtNum(s.total.usd,2));text('insight-eur','€'+fmtNum(s.total.eur,2));
+    const sorted=[...s.coins].sort((a,b)=>Number(b.value_usd)-Number(a.value_usd));
+    const top3=sorted.slice(0,3).reduce((sum,c)=>sum+(+c.value_usd),0);
+    const share=s.total.usd?top3/s.total.usd*100:0;
+    text('insight-caption-share','ΣΥΓΚΕΝΤΡΩΣΗ TOP 3');text('insight-share',fmtNum(share,1)+'%');
+    text('insight-day',percent(s.total.day_pct_est));dom['insight-day'].className=direction(s.total.day_pct_est);
+    text('insight-focus-title','PORTFOLIO  /  OVERVIEW');
+    text('insight-note',s.coins.length+' νομίσματα · Top 3: '+sorted.slice(0,3).map(c=>c.symbol).join(', ')+' · Επιλογή coin από το μενού.');
+  }else{
+    text('insight-usd','$'+fmtNum(coin.value_usd,2));text('insight-eur','€'+fmtNum(coin.value_eur,2));
+    text('insight-caption-share','ΜΕΡΙΔΙΟ ΣΤΟ PORTFOLIO');
+    text('insight-share',fmtNum(coin.weight_pct,2)+'%');
+    text('insight-day',percent(coin.day_pct));dom['insight-day'].className=direction(coin.day_pct);
+    text('insight-focus-title',coin.symbol+'  /  ASSET DETAIL');
+    text('insight-note','Ποσότητα '+fmtNum(coin.amount,coin.amount<1?6:4)+' · Τιμή '+priceFmt(coin[currency==='USD'?'price_usd':'price_eur'])+' · Το παραπάνω γράφημα είναι του συνόλου.');
+  }
 }
 function getSortedCoins(){
   const filtered=state.snapshot.coins.filter(c=>c.symbol.toLowerCase().includes(dom.search.value.trim().toLowerCase()));
@@ -119,7 +151,12 @@ function renderCoins(){
     const dayCell=div();dayCell.append(div('day '+dir,day));row.append(dayCell);
     const allo=div('allocation');const bar=div('allocation-bar');const fill=document.createElement('i');fill.style.width=Math.max(0,Math.min(100,c.weight_pct))+'%';bar.append(fill);
     allo.append(bar,div('allocation-label',fmtNum(c.weight_pct,1)+'%'));row.append(allo);desktop.append(row);
-    const card=div('mobile-coin');const head=div('mobile-top');const left=div();left.append(div('ticker',c.symbol),div('mobile-amount',amount+' '+c.symbol));
+    const card=div('mobile-coin');card.setAttribute('role','button');card.tabIndex=0;
+    card.setAttribute('aria-label','Ανάλυση '+c.symbol);
+    const showCoin=()=>{dom['analysis-select'].value=c.symbol;renderInsights();document.getElementById('asset-intelligence').scrollIntoView({behavior:'smooth',block:'start'});};
+    card.addEventListener('click',showCoin);
+    card.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();showCoin();}});
+    const head=div('mobile-top');const left=div();left.append(div('ticker',c.symbol),div('mobile-amount',amount+' '+c.symbol));
     const right=div();right.style.textAlign='right';right.append(div('coin-value',value),div('coin-sub',fmtNum(c.weight_pct,1)+'% κατανομή'));
     head.append(left,right);
     const bottom=div('mobile-bottom');bottom.append(div('mobile-price','Τιμή: '+price),div('day '+dir,day));card.append(head,bottom);mobile.append(card);
@@ -171,7 +208,14 @@ function drawChart(){
   const allMin=Math.min(...data.map(v)),allMax=Math.max(...data.map(v));
   const spread=Math.max((allMax-allMin)*.13,Math.abs(allMax)*.008,.000001);
   const min=allMin-spread,max=allMax+spread;
-  const lastStamp=Date.now(),timeFrom=state.chartDays?lastStamp-state.chartDays*86400000:Date.parse(data[0].at),timeTo=state.chartDays?lastStamp:Date.parse(data.at(-1).at);
+  const lastStamp=Date.now();
+  const actualStart=Date.parse(data[0].at),actualEnd=Date.parse(data.at(-1).at);
+  const coverage=Math.max(1,actualEnd-actualStart);
+  // Do not compress 17 hours of real data into a week of blank pixels.
+  const useFullPeriod=state.chartDays&&coverage>=state.chartDays*86400000*.80&&state.chartZoom<=1;
+  const margin=Math.max(120000,coverage*.04);
+  const timeFrom=useFullPeriod?lastStamp-state.chartDays*86400000:actualStart-margin;
+  const timeTo=useFullPeriod?lastStamp:actualEnd+margin;
   const points=data.map((p)=>({at:p.at,value:v(p),usd:+p.usd,eur:+p.eur,
    x:pad.l+(Date.parse(p.at)-timeFrom)/Math.max(1,timeTo-timeFrom)*usableW,
    y:pad.t+(max-v(p))/(max-min)*usableH}));
@@ -220,6 +264,7 @@ dom.refresh.addEventListener('click',refresh);dom.lock.addEventListener('click',
 dom['usd-btn'].addEventListener('click',()=>{state.currency='USD';state.selectedPoint=-1;render();});
 dom['eur-btn'].addEventListener('click',()=>{state.currency='EUR';state.selectedPoint=-1;render();});
 dom.search.addEventListener('input',renderCoins);dom.sort.addEventListener('change',renderCoins);
+dom['analysis-select'].addEventListener('change',renderInsights);
 document.querySelectorAll('[data-chart-days]').forEach(button=>button.addEventListener('click',()=>{
   state.chartDays=+button.dataset.chartDays;state.chartZoom=1;state.selectedPoint=-1;dom['chart-tooltip'].hidden=true;drawChart();
 }));
