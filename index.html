@@ -3,14 +3,14 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=yes">
-  <meta name="theme-color" content="#0b1120">
+  <meta name="theme-color" content="#0b1424">
   <meta name="color-scheme" content="dark">
   <meta name="description" content="Ιδιωτική προβολή του Crypto Portfolio Monitor από το κινητό, με κλειστό υπολογιστή.">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' https://api.github.com; img-src 'self' data:; style-src 'self'; script-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'">
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" type="image/png" sizes="192x192" href="./assets/icon-192.png">
   <link rel="apple-touch-icon" href="./assets/icon-192.png">
-  <link rel="stylesheet" href="./styles.css?v=13.3">
+  <link rel="stylesheet" href="./styles.css?v=13.4">
   <title>Crypto Portfolio — Cloud</title>
 </head>
 <body>
@@ -18,22 +18,28 @@
     <header class="topbar">
       <div class="brand">
         <div class="mark">C<span>↗</span></div>
-        <div><strong>CRYPTO <span>PORTFOLIO</span></strong><small>CLOUD MONITOR · PERSONAL</small></div>
+        <div><strong>CRYPTO <span>PORTFOLIO</span></strong><small>PREMIUM STUDIO · V13.4</small></div>
       </div>
-      <div class="top-actions"><span class="top-status" id="status"><i></i> Αποσυνδεδεμένο</span><button id="refresh" class="icon-btn" type="button" aria-label="Ανανέωση τιμών" title="Ανανέωση τιμών"><span aria-hidden="true">↻</span> Τιμές</button><button id="lock" class="icon-btn" type="button" title="Έξοδος" aria-label="Έξοδος"><span aria-hidden="true">⏻</span> Έξοδος</button></div>
+      <div class="top-actions"><span class="top-status" id="status"><i></i> Αποσυνδεδεμένο</span><button id="refresh" class="icon-btn" type="button" aria-label="Ανανέωση τιμών" title="Ανανέωση τιμών"><span aria-hidden="true">↻</span></button><button id="lock" class="icon-btn" type="button" title="Έξοδος" aria-label="Έξοδος"><span aria-hidden="true">⏻</span></button></div>
     </header>
 
     <main id="dashboard" hidden>
-      <section class="headline">
-        <div><p class="eyebrow">MY PORTFOLIO / OVERVIEW</p><h1>Το χαρτοφυλάκιό μου</h1><p class="muted last-updated" id="last-updated">—</p></div>
+      <nav class="section-nav" aria-label="Γρήγορη πλοήγηση">
+        <a href="#overview">◈  Επισκόπηση</a>
+        <a href="#performance">↗  Γραφήματα</a>
+        <a href="#asset-intelligence">◎  Ανάλυση</a>
+        <a href="#holdings">▤  Νομίσματα</a>
+      </nav>
+      <section class="headline" id="overview">
+        <div><p class="eyebrow">ULTIMATE STUDIO  /  CLOUD OVERVIEW</p><h1>Η συνολική εικόνα <span class="premium-asterisk">✦</span></h1><p class="muted last-updated" id="last-updated">—</p></div>
         <div class="currency-switch" role="group" aria-label="Νόμισμα"><button type="button" id="usd-btn" class="active">USD</button><button type="button" id="eur-btn">EUR</button></div>
       </section>
       <section class="hero-grid">
         <article class="hero-total"><div class="eyebrow">ΣΥΝΟΛΙΚΗ ΑΞΙΑ</div><div class="hero-number" id="total">—</div><div class="hero-meta"><span id="total-change" class="movement">—</span><span class="hint">σε σχέση με τη βάση αναφοράς</span></div><div class="glow"></div></article>
         <div class="side-metrics"><article class="metric"><div class="eyebrow">ΜΕΤΑΒΟΛΗ 24ΩΡΟΥ <span class="info">≈</span></div><strong id="daily-change">—</strong><small>Εκτίμηση από τιμές 24h</small></article><article class="metric"><div class="eyebrow">ΚΑΤΑΧΩΡΙΣΜΕΝΑ COINS</div><strong id="coin-count">—</strong><small id="source">GitHub Cloud · CoinGecko</small></article></div>
       </section>
-      <section class="panel chart-panel">
-        <div class="section-head"><div><p class="eyebrow">PORTFOLIO PERFORMANCE</p><h2>Ιστορικό αποτίμησης</h2></div><div class="legend"><span class="legend-dot"></span> <span id="chart-currency">USD</span></div></div>
+      <section class="panel chart-panel" id="performance">
+        <div class="section-head"><div><p class="eyebrow">PERFORMANCE  /  REAL HISTORY</p><h2>Ιστορικό αποτίμησης</h2></div><div class="legend"><span class="legend-dot"></span> <span id="chart-currency">USD</span></div></div>
         <div class="chart-controls" role="group" aria-label="Χρονικό διάστημα γραφήματος">
           <button class="range-btn" data-chart-days="1" type="button">24 ώρες</button>
           <button class="range-btn active" data-chart-days="7" type="button">7 ημέρες</button>
@@ -48,8 +54,23 @@
         <div class="chart-wrap" id="chart-wrap"><canvas id="history-chart" aria-label="Ιστορικό πραγματικών αποτιμήσεων" role="img"></canvas><div id="chart-tooltip" class="chart-tooltip" hidden></div><div class="chart-placeholder" id="chart-placeholder">Το ιστορικό δημιουργείται από τις πραγματικές cloud ενημερώσεις.</div></div>
         <div class="chart-foot"><span id="chart-range">Μόνο πραγματικές καταγραφές</span><span>Ημερομηνία · ώρα · USD / EUR · μεταβολή</span></div>
       </section>
-      <section class="panel coins-panel">
-        <div class="section-head coins-head"><div><p class="eyebrow">HOLDINGS</p><h2>Τα νομίσματά μου <span id="small-count" class="count">—</span></h2></div><div class="table-controls"><input id="search" type="search" placeholder="Αναζήτηση coin" aria-label="Αναζήτηση νομίσματος" autocomplete="off"><select id="sort" aria-label="Ταξινόμηση"><option value="value">Αξία ↓</option><option value="dayup">24h άνοδος ↓</option><option value="daydown">24h πτώση ↑</option><option value="name">Αλφαβητικά</option></select></div></div>
+      <section class="panel asset-intelligence" id="asset-intelligence">
+        <div class="section-head insight-head">
+          <div><p class="eyebrow">ASSET INTELLIGENCE  /  DEEP DIVE</p><h2>Ανάλυση χαρτοφυλακίου</h2>
+            <p class="section-subtitle">Συνολική εικόνα ή επιλεγμένο νόμισμα · πραγματικές τρέχουσες αξίες</p></div>
+          <label class="focus-selector-label" for="analysis-select"><span>ΕΠΙΛΟΓΗ</span><select id="analysis-select" aria-label="Επιλογή χαρτοφυλακίου ή νομίσματος">
+            <option value="portfolio">Σύνολο χαρτοφυλακίου</option></select></label>
+        </div>
+        <div class="insight-summary-grid">
+          <div class="insight-summary-stat"><small>ΣΥΝΟΛΙΚΗ ΑΞΙΑ · USD</small><strong id="insight-usd">—</strong></div>
+          <div class="insight-summary-stat"><small>ΣΥΝΟΛΙΚΗ ΑΞΙΑ · EUR</small><strong id="insight-eur">—</strong></div>
+          <div class="insight-summary-stat"><small id="insight-caption-share">ΝΟΜΙΣΜΑΤΑ / ΕΥΡΟΣ</small><strong id="insight-share">—</strong></div>
+          <div class="insight-summary-stat"><small>24ΩΡΟ · ΕΚΤΙΜΗΣΗ</small><strong id="insight-day">—</strong></div>
+        </div>
+        <div class="insight-foot"><strong id="insight-focus-title">PORTFOLIO  /  OVERVIEW</strong><span id="insight-note">Επίλεξε νόμισμα για μεμονωμένη ανάλυση.</span></div>
+      </section>
+      <section class="panel coins-panel" id="holdings">
+        <div class="section-head coins-head"><div><p class="eyebrow">LIVE HOLDINGS  /  ASSET ALLOCATION</p><h2>Τα νομίσματά μου <span id="small-count" class="count">—</span></h2></div><div class="table-controls"><input id="search" type="search" placeholder="Αναζήτηση coin" aria-label="Αναζήτηση νομίσματος" autocomplete="off"><select id="sort" aria-label="Ταξινόμηση"><option value="value">Αξία ↓</option><option value="dayup">24h άνοδος ↓</option><option value="daydown">24h πτώση ↑</option><option value="name">Αλφαβητικά</option></select></div></div>
         <div class="desktop-table"><div class="table-titles"><span>ΝΟΜΙΣΜΑ</span><span>ΠΟΣΟΤΗΤΑ</span><span>ΤΙΜΗ</span><span>ΑΞΙΑ</span><span>24H</span><span>ΚΑΤΑΝΟΜΗ</span></div><div id="coins-desktop"></div></div>
         <div class="mobile-coins" id="coins-mobile"></div>
       </section>
@@ -67,6 +88,6 @@
       <div class="login-art"><div class="art-grid"></div><div class="art-words"><p>ALWAYS CONNECTED</p><h2>YOUR ASSETS.<br><span>YOUR CONTROL.</span></h2><small>LIVE CLOUD SNAPSHOT · 24/7 ACCESS</small></div></div>
     </section>
   </div>
-  <script src="./app.js?v=13.3" defer></script>
+  <script src="./app.js?v=13.4" defer></script>
 </body>
 </html>
