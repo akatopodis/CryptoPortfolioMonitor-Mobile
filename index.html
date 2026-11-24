@@ -6,11 +6,11 @@
   <meta name="theme-color" content="#0b1424">
   <meta name="color-scheme" content="dark">
   <meta name="description" content="Ιδιωτική προβολή του Crypto Portfolio Monitor από το κινητό, με κλειστό υπολογιστή.">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' https://api.github.com https://api.coingecko.com; img-src 'self' data:; style-src 'self'; script-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'self'; frame-ancestors 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' https://api.github.com https://api.coingecko.com https://cdn.jsdelivr.net https://huggingface.co https://*.huggingface.co https://*.hf.co https://*.xethub.hf.co https://raw.githubusercontent.com; img-src 'self' data:; style-src 'self'; script-src 'self' https://cdn.jsdelivr.net; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'self'; frame-ancestors 'none'">
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" type="image/png" sizes="192x192" href="./assets/icon-192.png">
   <link rel="apple-touch-icon" href="./assets/icon-192.png">
-  <link rel="stylesheet" href="./styles.css?v=14.1">
+  <link rel="stylesheet" href="./styles.css?v=14.2.1">
   <title>Crypto Portfolio — Cloud</title>
 </head>
 <body>
@@ -18,7 +18,7 @@
     <header class="topbar">
       <div class="brand">
         <div class="mark">C<span>↗</span></div>
-        <div><strong>CRYPTO <span>PORTFOLIO</span></strong><small>LOCAL AI · V14.1</small></div>
+        <div><strong>CRYPTO <span>PORTFOLIO</span></strong><small>LOCAL AI · V14.2.1</small></div>
       </div>
       <div class="top-actions"><span class="top-status" id="status"><i></i> Αποσυνδεδεμένο</span><button id="refresh" class="icon-btn" type="button" aria-label="Ανανέωση τιμών" title="Ανανέωση τιμών"><span aria-hidden="true">↻</span></button><button id="lock" class="icon-btn" type="button" title="Έξοδος" aria-label="Έξοδος"><span aria-hidden="true">⏻</span></button></div>
     </header>
@@ -94,6 +94,14 @@
       <section class="panel advisor-panel" id="offline-advisor">
         <div class="section-head"><div><p class="eyebrow">PORTFOLIO INTELLIGENCE  /  NO AI API</p><h2>Portfolio Intelligence · Strategy Lab</h2>
           <p class="section-subtitle">Σύγκριση πραγματικών θέσεων, υποθετικών επιλογών και φωνητική συνομιλία · μόνο ανάγνωση</p></div></div>
+        <div class="advisor-voice-intro">◉ COMPUTER · VOICE INTERFACE <small>Εμφανές μικρόφωνο · σύντομες φωνητικές απαντήσεις</small></div>
+        <div class="advisor-voice" role="group" aria-label="Φωνητική συνομιλία Advisor">
+          <button type="button" id="advisor-listen" title="Μίλησε στον Advisor">🎙 Μίλησε τώρα</button>
+          <button type="button" id="advisor-speak" title="Άκου τη σύντομη περίληψη">🔊 Άκου</button>
+          <button type="button" id="advisor-stop" title="Διακοπή ομιλίας">■ Σταμάτα</button>
+          <label class="advisor-speech-toggle"><input id="advisor-auto-voice" type="checkbox"> Αυτόματη φωνητική απάντηση</label>
+          <label class="advisor-voice-style" for="advisor-voice-lang">Φωνή <select id="advisor-voice-lang"><option value="el-GR">Ελληνικά</option><option value="en-US">English</option></select></label><span id="advisor-voice-status" role="status" aria-live="polite">Φωνή προαιρετική · Μικρόφωνο μόνο με άδεια</span>
+        </div>
         <div class="advisor-form">
           <label>Ενέργεια<select id="advisor-action"><option value="swap">Ανταλλαγή</option><option value="buy">Αγορά</option><option value="hold">Διακράτηση</option></select></label>
           <label>Από<select id="advisor-source"></select></label>
@@ -116,23 +124,17 @@
           <div class="local-llm-head"><div><strong>◆ Local Language Model</strong><small>Πραγματική συνομιλία στη συσκευή · χωρίς πληρωμένο AI API</small></div><span class="local-llm-pill">ΠΡΟΑΙΡΕΤΙΚΟ</span></div>
           <div class="local-llm-row"><label for="local-llm-model">Μοντέλο
             <select id="local-llm-model"><option value="Qwen2.5-0.5B-Instruct-q4f16_1-MLC">Qwen 2.5 · 0.5B · περίπου 945 MB</option><option value="Qwen2.5-1.5B-Instruct-q4f16_1-MLC">Qwen 2.5 · 1.5B · περίπου 1.6 GB</option></select>
-          </label><button type="button" id="local-llm-load">⬇ Φόρτωση AI μοντέλου</button><button type="button" id="local-llm-unload" disabled>Διακοπή AI</button></div>
-          <p id="local-llm-status" role="status" aria-live="polite">Απενεργοποιημένο. Ενεργοποιείται μόνο με δική σου επιλογή και WebGPU.</p>
+          </label><button type="button" id="local-llm-load">⬇ Ενεργοποίηση & αυτόματη λήψη AI</button><button type="button" id="local-llm-unload" disabled>Διακοπή AI</button></div>
+          <progress id="local-llm-progress" max="100" value="0" hidden aria-label="Πρόοδος λήψης μοντέλου"></progress><label class="local-llm-autostart"><input id="local-llm-auto" type="checkbox"> Αυτόματη φόρτωση μετά την πρώτη εγκατάσταση (με τη δική μου έγκριση)</label><p id="local-llm-status" role="status" aria-live="polite">Απενεργοποιημένο. Ενεργοποιείται μόνο με δική σου επιλογή και WebGPU.</p>
           <p class="local-llm-privacy">Το μοντέλο κατεβαίνει την πρώτη φορά και παράγει απαντήσεις τοπικά. Λειτουργεί μέσα σε ξεχωριστό Web Worker χωρίς πρόσβαση στο GitHub token. Χρειάζεται Chrome/WebGPU και αρκετή μνήμη. Η ανάλυση σεναρίων παραμένει μαθηματική, όχι πρόβλεψη.</p>
           <div id="local-llm-output" class="local-llm-output" hidden></div>
         </div>
-        <div class="advisor-voice" role="group" aria-label="Φωνητική συνομιλία Advisor">
-          <button type="button" id="advisor-listen" title="Μίλησε στον Advisor">🎙 Μίλησε</button>
-          <button type="button" id="advisor-speak" title="Άκου τη σύντομη περίληψη">🔊 Άκου</button>
-          <button type="button" id="advisor-stop" title="Διακοπή ομιλίας">■ Σταμάτα</button>
-          <label class="advisor-speech-toggle"><input id="advisor-auto-voice" type="checkbox"> Αυτόματη φωνητική απάντηση</label>
-          <span id="advisor-voice-status" role="status" aria-live="polite">Φωνή προαιρετική · Μικρόφωνο μόνο με άδεια</span>
-        </div>
         <label class="advisor-prompt-label" for="advisor-question">Ρώτησέ με με δικά σου λόγια</label>
         <div class="advisor-question-row"><input id="advisor-question" type="text" autocomplete="off" maxlength="300" placeholder="π.χ. Πώς μπορώ να μειώσω τη συγκέντρωση;"><button type="button" id="advisor-ask">Ρώτησε</button></div>
-        <div id="advisor-conversation" class="advisor-chat-log" role="log" aria-label="Ιστορικό συνομιλίας Advisor" aria-live="polite"></div>
+        <div class="advisor-conversation-header"><strong>Συνομιλία · Εσύ / AI</strong><button type="button" id="advisor-clear" aria-label="Καθαρισμός συνομιλίας">＋ Νέα συνομιλία</button></div>
+        <div id="advisor-conversation" class="advisor-chat-log" role="log" aria-label="Ιστορικό συνομιλίας Advisor" aria-live="polite"><p class="advisor-empty">Γράψε μια ερώτηση ή πες καλημέρα.</p></div>
         <div id="advisor-strategy-cards" class="advisor-strategy-cards" aria-label="Συγκριτικά σενάρια"></div>
-        <div id="advisor-result" class="advisor-result" aria-live="polite">Συνδέσου στο ιδιωτικό Cloud για εξατομικευμένη ανάλυση.</div>
+        <details id="advisor-report-container" class="advisor-report-container" hidden><summary>Πλήρης αριθμητική αναφορά</summary><div id="advisor-result" class="advisor-result" aria-live="polite"></div></details>
         <p class="brief-note">Local decision-support · Ο Advisor λειτουργεί με διαφανείς κανόνες, ενώ ένα πραγματικό τοπικό γλωσσικό μοντέλο ενεργοποιείται προαιρετικά σε συμβατές συσκευές. Δεν απαιτείται πληρωμένο AI API. Η σύγκριση εξετάζει συγκεκριμένα κριτήρια, όχι μελλοντικές αποδόσεις. Δεν αποστέλλονται εντολές συναλλαγών.</p>
       </section>
       <section class="panel coins-panel" id="holdings">
@@ -157,8 +159,8 @@
       <div class="login-art"><div class="art-grid"></div><div class="art-words"><p>ALWAYS CONNECTED</p><h2>YOUR ASSETS.<br><span>YOUR CONTROL.</span></h2><small>LIVE CLOUD SNAPSHOT · 24/7 ACCESS</small></div></div>
     </section>
   </div>
-  <script src="./advisor_intelligence.js?v=14.1" defer></script>
-  <script src="./app.js?v=14.1" defer></script>
-  <script src="./llm_bridge.js?v=14.1" defer></script>
+  <script src="./advisor_intelligence.js?v=14.2.1" defer></script>
+  <script src="./app.js?v=14.2.1" defer></script>
+  <script src="./llm_bridge.js?v=14.2.1" defer></script>
 </body>
 </html>
