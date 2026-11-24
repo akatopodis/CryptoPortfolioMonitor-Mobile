@@ -292,7 +292,7 @@ function render(){
   text('coin-count',String(s.coins.length));text('small-count',String(s.coins.length));text('source','CoinGecko · GitHub Actions');
   text('footer-update','Cloud: '+new Date(s.updated_at).toLocaleString('el-GR'));
   text('chart-currency',state.currency);
-  renderCoins();renderInsights();renderMarketBrief();drawChart();marketStatus();
+  renderCoins();renderInsights();renderMarketBrief();drawChart();marketStatus();advisorRenderContext();
 }
 // Per-coin insights are computed from the authenticated private snapshot only.
 // The public PWA shell ships no holdings, tokens or fabricated coin history.
@@ -522,6 +522,229 @@ async function refreshPrivatePositions(){
   }catch(e){if(token===state.token){state.holdingsSyncError=String(e.message||'network error').slice(0,85);setStatus('warn','Holdings sync pending');if(dom['holdings-sync-status'])dom['holdings-sync-status'].textContent='ΘΕΣΕΙΣ: αναμονή · '+state.holdingsSyncError;}}
   finally{state.portfolioFetchBusy=false;}
 }
+
+// Local, read-only decision support. Assumptions are displayed, never forecast as facts.
+const advisorIds=['advisor-action','advisor-source','advisor-target','advisor-amount','advisor-fee','advisor-slippage','advisor-stress','advisor-result'];
+const advisorDom=Object.fromEntries(advisorIds.map(id=>[id,document.getElementById(id)]));
+function advisorPositions(){
+  const list=state.snapshot?.coins||[];
+  return list.map(c=>({symbol:String(c.symbol||'').toUpperCase(),qty:Number(c.amount),price:Number(c.price_usd)}))
+    .filter(c=>c.symbol&&Number.isFinite(c.qty)&&c.qty>=0&&Number.isFinite(c.price)&&c.price>0)
+    .map(c=>({...c,value:c.qty*c.price}));
+}
+function advisorStats(positions){
+  const total=positions.reduce((n,c)=>n+c.value,0);
+  if(!(total>0))throw Error('Δεν υπάρχουν επαρκείς πρόσφατες τιμές.');
+  const weights=positions.map(c=>({symbol:c.symbol,weight:c.value/total})).sort((a,b)=>b.weight-a.weight);
+  return {total,weights,top3:weights.slice(0,3).reduce((v,c)=>v+c.weight,0)*100,
+    hhi:weights.reduce((v,c)=>v+c.weight*c.weight,0)};
+}
+function advisorWhatIf(positions,{action='hold',source='',target='',amount=0,fee=0.2,slippage=0.3,stress=0}={}){
+  if(!['hold','swap','buy'].includes(action))throw Error('Άγνωστη ενέργεια');
+  for(const x of [amount,fee,slippage,stress])if(!Number.isFinite(x))throw Error('Μη έγκυρος αριθμός.');
+  if(fee<0||slippage<0||fee>20||slippage>20||stress< -100||stress>1000)throw Error('Εκτός ορίων κόστος ή stress.');
+  const after=positions.map(c=>({...c}));const before=advisorStats(positions);
+  const dest=after.find(c=>c.symbol===target),src=after.find(c=>c.symbol===source);
+  let cost=0;
+  if(action!=='hold'){
+    if(!(amount>0)||!dest)throw Error('Επίλεξε διαθέσιμο νόμισμα και θετικό ποσό USD.');
+    if(action==='swap'&&(!src||src.symbol===target||src.value+1e-8<amount))throw Error('Επίλεξε διαφορετική πηγή με επαρκές υπόλοιπο.');
+    cost=amount*(fee+slippage)/100;
+    const received=amount-cost;
+    if(action==='swap'){src.qty-=amount/src.price;src.value-=amount;}
+    dest.qty+=received/dest.price;dest.value+=received;
+  }
+  const stats=advisorStats(after);
+  const stressed=stats.total*(1+stress/100);
+  return {before,after:stats,cost,positions:after,stressed,stress};
+}
+function advisorParams(){return {action:advisorDom['advisor-action'].value,
+  source:advisorDom['advisor-source'].value,target:advisorDom['advisor-target'].value,
+  amount:Number(advisorDom['advisor-amount'].value),fee:Number(advisorDom['advisor-fee'].value),
+  slippage:Number(advisorDom['advisor-slippage'].value),stress:Number(advisorDom['advisor-stress'].value)};}
+function advisorRenderContext(){
+  const list=advisorPositions(),symbols=list.map(c=>c.symbol),existing=Array.from(advisorDom['advisor-target'].options).map(o=>o.value);
+  if(symbols.join('|')!==existing.join('|')){
+    for(const id of ['advisor-source','advisor-target']){
+      const select=advisorDom[id],prev=select.value;select.replaceChildren();
+      for(const sym of symbols){const op=document.createElement('option');op.value=sym;op.textContent=sym;select.append(op);}
+      if(symbols.includes(prev))select.value=prev;
+    }
+    if(symbols.length>1&&advisorDom['advisor-source'].value===advisorDom['advisor-target'].value)advisorDom['advisor-target'].value=symbols[1];
+  }
+}
+function advisorWrite(lines){
+  advisorDom['advisor-result'].textContent=lines.join('\n');
+  if(document.getElementById('advisor-auto-voice')?.checked)advisorVoiceSpeak();
+}
+// An advanced explanation layer keeps all calculations local and read-only.
+// Previous basic forms remain available, but their results now use the same
+// guarded analytical engine as the natural-language conversation.
+let advisorLastSpoken='';
+const advisorConversation=[];
+let advisorPreviousQuestion='';
+function advisorShowAnswer(answer, question=''){
+  const response=typeof answer==='string'?{text:answer,spoken:answer,cards:[]}:answer;
+  advisorLastSpoken=String(response.spoken||'');
+  // Provenance visible in the written report; never manufacture a live quote.
+  if(state.marketAt===0){
+    response.text+='\n\nΠηγή: τελευταίο διαθέσιμο cloud snapshot, όχι επιβεβαιωμένη ζωντανή τιμή.';
+  }else if(Date.now()-state.marketAt>20*60*1000){
+    response.text+='\n\nΠροσοχή: οι διαθέσιμες τιμές είναι παλιότερες από 20 λεπτά.';
+  }
+  if(question)advisorPreviousQuestion=question;
+  advisorWrite([response.text]);
+  const chat=document.getElementById('advisor-conversation');
+  if(chat){
+    if(question){const msg=document.createElement('div');msg.className='advisor-chat-message user';msg.textContent=question;chat.append(msg);}
+    const reply=document.createElement('div');reply.className='advisor-chat-message assistant';
+    const label=document.createElement('strong');label.textContent='Advisor · Independent analysis';reply.append(label);
+    const body=document.createElement('div');body.textContent=String(response.spoken||response.text||'');reply.append(body);chat.append(reply);
+    while(chat.children.length>12)chat.firstElementChild.remove();
+    chat.scrollTop=chat.scrollHeight;
+  }
+  const cards=document.getElementById('advisor-strategy-cards');
+  if(cards){cards.replaceChildren();for(const item of response.cards||[]){
+    const card=document.createElement('div');card.className='advisor-strategy-card';
+    const heading=document.createElement('strong');heading.textContent=item.title;
+    const detail=document.createElement('small');detail.textContent=item.label;
+    const note=document.createElement('span');note.textContent=item.note;
+    card.append(heading,detail,note);cards.append(card);
+  }}
+}
+function advisorAdvanced(query,params=advisorParams()){
+  advisorRenderContext();
+  const list=advisorPositions();
+  // Overrides are assumptions, not permanent data or trade instructions.
+  const answer=window.CPMAdvisor.explain(list,query,params);
+  advisorShowAnswer(answer,query);
+  advisorVoiceStatus.textContent='Ανάλυση από πραγματικά διαθέσιμα δεδομένα · χωρίς εντολή συναλλαγής.';
+}
+function advisorSimulate(){
+  try{
+    const p=advisorParams();const list=advisorPositions();
+    if(!Number.isFinite(p.stress)||p.stress< -100||p.stress>1000)throw Error('Το Stress % πρέπει να είναι από -100 έως +1000.');
+    const sim=window.CPMAdvisor.simulate(list,p);
+    const title=p.action==='hold'?'Διακράτηση':p.action==='buy'?`Αγορά ${p.target}`:`${p.source} → ${p.target}`;
+    const summary=p.action==='hold'?'Η διακράτηση δεν δημιουργεί νέα έξοδα.':
+      `Για ${title} με ${Number(p.amount).toFixed(2)} δολάρια, τα εκτιμώμενα έξοδα είναι ${sim.cost.toFixed(2)} δολάρια.`;
+    const report=[summary,'',
+      `Τρέχουσα αποτίμηση: $${sim.before.total.toFixed(2)}`,
+      `Μετά τη θεωρητική κίνηση: $${sim.after.total.toFixed(2)}${p.action==='buy'?' (με νέο κεφάλαιο)':''}`,
+      `Top 3: ${(sim.before.top3*100).toFixed(1)}% → ${(sim.after.top3*100).toFixed(1)}%`,
+      `Συγκέντρωση HHI: ${sim.before.hhi.toFixed(4)} → ${sim.after.hhi.toFixed(4)}`,
+      `Γενική υποθετική πτώση 25%: $${sim.outcomes.broad_down.toFixed(2)}`,
+      `Υποθετική πτώση 45% μόνο στη μεγαλύτερη σημερινή θέση: $${sim.outcomes.single_down.toFixed(2)}`,
+      `Γενική υποθετική άνοδος 15%: $${sim.outcomes.broad_up.toFixed(2)}`,
+      `Προσωπικό stress ${p.stress>=0?'+':''}${p.stress.toFixed(1)}% σε όλα: $${(sim.after.total*(1+p.stress/100)).toFixed(2)}`,
+      '','Οι παραδοχές δεν είναι πρόβλεψη και δεν περιλαμβάνουν φόρους, πλήρη προσωπική βάση κόστους ή πραγματικό order book. Δεν πραγματοποιήθηκε συναλλαγή.'];
+    advisorShowAnswer({text:report.join('\n'),spoken:summary,cards:[]},'Προσομοίωση: '+title);
+  }catch(e){advisorShowAnswer({text:'Δεν έγινε προσομοίωση: '+e.message,spoken:'Η προσομοίωση δεν ολοκληρώθηκε.',cards:[]});}
+}
+function advisorAnalyze(){
+  try{
+    const goal=document.getElementById('advisor-goal')?.value||'balanced';
+    const prompts={balanced:'Σύγκρινε 3 επιλογές για καλύτερη ισορροπία',diversify:'Πώς να μειώσω τη συγκέντρωση;',
+      resilience:'Πώς να μειώσω το ρίσκο από πτώση της μεγαλύτερης θέσης;',fees:'Πώς να αποφύγω άσκοπες προμήθειες;'};
+    advisorAdvanced(prompts[goal]);
+  }catch(e){advisorShowAnswer({text:'Δεν υπάρχουν επαρκή στοιχεία για ανάλυση: '+e.message,spoken:'Η ανάλυση δεν ολοκληρώθηκε.',cards:[]});}
+}
+advisorDom['advisor-analyze']=document.getElementById('advisor-analyze');
+advisorDom['advisor-simulate']=document.getElementById('advisor-simulate');
+advisorDom['advisor-analyze'].addEventListener('click',advisorAnalyze);
+advisorDom['advisor-simulate'].addEventListener('click',advisorSimulate);
+
+// Voice companion uses device TTS and optional Web Speech Recognition. No AI API key.
+// Note: browser speech recognition MAY transmit audio to the browser provider.
+const advisorVoiceStatus=document.getElementById('advisor-voice-status');
+const advisorVoiceListen=document.getElementById('advisor-listen');
+const advisorVoiceSpeakButton=document.getElementById('advisor-speak');
+const advisorVoiceStop=document.getElementById('advisor-stop');
+const advisorQuestion=document.getElementById('advisor-question');
+const advisorRecognizer=window.SpeechRecognition||window.webkitSpeechRecognition;
+let advisorActiveRecognition=null;
+let advisorSpeaking=false;
+function advisorSpeechSummary(){
+ if(window.CPMMobileLLM?.spoken)return window.CPMMobileLLM.spoken;
+ if(advisorLastSpoken)return advisorLastSpoken;
+ const txt=(advisorDom['advisor-result'].textContent||'').trim();
+ if(!txt)return 'Δεν υπάρχουν ακόμη αποτελέσματα. Πάτησε Ανάλυση πρώτα.';
+ // Pick 2-3 meaningful sentences; do not read tables, raw USD numbers, times or IDs.
+ const plain=txt.split(/\n+/).map(x=>x.trim()).filter(x=>x.length>35&&!/^(HHI|Top 3|[\d\W]+$|Συνολική αξία|Υποθετικό stress)/i.test(x));
+ const statements=plain.flatMap(x=>x.split(/(?<=[.!;;])\s+/)).filter(x=>x.length>26&&!/^\d/.test(x));
+ return (statements.slice(0,3).join(' ')||txt.slice(0,220)).replace(/\$[\d,\.]+/g,'').replace(/\b\d{1,2}:\d{2}(?::\d{2})?\b/g,'').replace(/\s{2,}/g,' ').slice(0,460);
+}
+function advisorVoiceCancel(){
+ if(advisorActiveRecognition){try{advisorActiveRecognition.abort();}catch(e){}advisorActiveRecognition=null;}
+ if('speechSynthesis' in window)window.speechSynthesis.cancel();
+ advisorSpeaking=false;advisorVoiceStatus.textContent='Η φωνή σταμάτησε.';
+ advisorVoiceListen.disabled=false;
+}
+function advisorVoiceSpeak(){
+ if(!('speechSynthesis' in window)){advisorVoiceStatus.textContent='Η σύνθεση φωνής δεν υποστηρίζεται σε αυτόν τον browser.';return;}
+ window.speechSynthesis.cancel();
+ const spoken=advisorSpeechSummary();
+ const message=new SpeechSynthesisUtterance(spoken);
+ message.lang='el-GR';message.rate=.96;message.pitch=1;message.volume=1;
+ const available=window.speechSynthesis.getVoices();
+ const greek=available.filter(v=>v.lang.toLowerCase().startsWith('el'));
+ const chosen=greek.find(v=>/natural|neural|online/i.test(v.name))||greek[0];
+ if(chosen)message.voice=chosen;
+ message.onstart=()=>{advisorSpeaking=true;advisorVoiceStatus.textContent='Ο Advisor μιλά…';};
+ message.onend=()=>{advisorSpeaking=false;advisorVoiceStatus.textContent='Έτοιμος για νέα ερώτηση.';};
+ message.onerror=()=>{advisorSpeaking=false;advisorVoiceStatus.textContent='Δεν ήταν δυνατή η εκφώνηση.';};
+ window.speechSynthesis.speak(message);
+}
+function advisorAskNatural(){
+ const raw=advisorQuestion.value.trim();
+ window.CPMMobileLLM?.reset();
+ if(!raw){advisorVoiceStatus.textContent='Γράψε ή πες τι θέλεις να συγκρίνω.';return;}
+ try{
+   let actual=raw;
+   // Follow-up amounts keep the last explicit simulated pair, in this session
+   // only. A prior vague recommendation is not treated as authorization.
+   if(/^(?:και|αν|what about|with)(?:\s|$)/i.test(raw.toLocaleLowerCase('el-GR'))&&advisorPreviousQuestion){
+     const previous=window.CPMAdvisor.understand(advisorPreviousQuestion,advisorPositions());
+     const current=window.CPMAdvisor.understand(raw,advisorPositions());
+     if((previous.intent==='swap'||previous.intent==='buy')&&current.amount&&!current.mentioned.length){
+       actual=(previous.intent==='swap'
+          ?`Αντάλλαξε ${current.amount} USD από ${previous.source} σε ${previous.target}`
+          :`Αγόρασε ${current.amount} USD ${previous.target}`);
+     }
+   }
+   const answer=window.CPMAdvisor.explain(advisorPositions(),actual,advisorParams());
+   advisorShowAnswer(answer,raw);
+   window.CPMMobileLLM?.explain(raw,answer.text);
+   advisorVoiceStatus.textContent='Ανάλυση με πραγματικές διαθέσιμες τιμές · χωρίς συναλλαγή.';
+ }catch(e){advisorShowAnswer({text:'Χρειάζομαι πιο συγκεκριμένα ή πρόσφατα δεδομένα: '+e.message,
+   spoken:'Χρειάζομαι πιο συγκεκριμένα στοιχεία για να μην κάνω υποθέσεις.',cards:[]},raw);}
+}
+function advisorVoiceStart(){
+ if(!advisorRecognizer){advisorVoiceStatus.textContent='Το μικρόφωνο ομιλίας δεν υποστηρίζεται εδώ. Μπορείς να πληκτρολογήσεις.';return;}
+ if(!window.isSecureContext){advisorVoiceStatus.textContent='Η αναγνώριση ομιλίας απαιτεί HTTPS.';return;}
+ if(advisorActiveRecognition)return;
+ if('speechSynthesis' in window)window.speechSynthesis.cancel();
+ const recognizer=new advisorRecognizer();
+ recognizer.lang='el-GR';recognizer.interimResults=false;recognizer.continuous=false;recognizer.maxAlternatives=1;
+ advisorActiveRecognition=recognizer;advisorVoiceListen.disabled=true;
+ advisorVoiceStatus.textContent='Σε ακούω…';
+ recognizer.onresult=(event)=>{const text=event.results?.[0]?.[0]?.transcript||'';advisorQuestion.value=text;advisorAskNatural();};
+ recognizer.onerror=(event)=>{advisorVoiceStatus.textContent='Η αναγνώριση ομιλίας δεν ολοκληρώθηκε: '+String(event.error||'error');};
+ recognizer.onend=()=>{advisorActiveRecognition=null;advisorVoiceListen.disabled=false;};
+ try{recognizer.start();}catch(e){advisorActiveRecognition=null;advisorVoiceListen.disabled=false;advisorVoiceStatus.textContent='Δεν ήταν δυνατή η ενεργοποίηση μικροφώνου.';}
+}
+advisorVoiceListen.addEventListener('click',advisorVoiceStart);
+advisorVoiceSpeakButton.addEventListener('click',advisorVoiceSpeak);
+advisorVoiceStop.addEventListener('click',advisorVoiceCancel);
+document.getElementById('advisor-ask').addEventListener('click',advisorAskNatural);
+advisorQuestion.addEventListener('keydown',e=>{if(e.key==='Enter')advisorAskNatural();});
+document.querySelectorAll('[data-advisor-prompt]').forEach(btn=>btn.addEventListener('click',()=>{
+ advisorQuestion.value=btn.dataset.advisorPrompt;advisorAskNatural();
+ document.getElementById('advisor-conversation')?.scrollIntoView({behavior:'smooth',block:'nearest'});
+}));
+
+
+
 function logout(){sessionStorage.removeItem(SESSION_KEY);localStorage.removeItem(VAULT_KEY);state.token='';state.snapshot=null;state.cloudSnapshot=null;state.marketAt=0;state.marketRetryAt=0;state.marketError='';state.costBasis=null;dom.dashboard.hidden=true;dom['mobile-dock'].hidden=true;dom['login-screen'].hidden=false;dom.token.value='';dom['unlock-pass'].value='';dom['remember-pass'].value='';dom.remember.checked=false;dom['remember-pass-wrap'].hidden=true;dom['setup-section'].hidden=false;dom['unlock-section'].hidden=true;clearError();setStatus('','Αποσυνδεδεμένο');}
 dom.connect.addEventListener('click',()=>{const token=dom.token.value.trim();if(!token){showError('Συμπλήρωσε το GitHub token.');return;}const password=dom.remember.checked?dom['remember-pass'].value:'';if(dom.remember.checked&&password.length<8){showError('Ο κωδικός αποθήκευσης πρέπει να έχει τουλάχιστον 8 χαρακτήρες.');return;}beginSession(token,password);});
 dom.token.addEventListener('keydown',e=>{if(e.key==='Enter')dom.connect.click()});
