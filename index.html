@@ -6,11 +6,11 @@
   <meta name="theme-color" content="#0b1424">
   <meta name="color-scheme" content="dark">
   <meta name="description" content="Ιδιωτική προβολή του Crypto Portfolio Monitor από το κινητό, με κλειστό υπολογιστή.">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' https://api.github.com https://api.coingecko.com; img-src 'self' data:; style-src 'self'; script-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' https://api.github.com https://api.coingecko.com; img-src 'self' data:; style-src 'self'; script-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'self'; frame-ancestors 'none'">
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" type="image/png" sizes="192x192" href="./assets/icon-192.png">
   <link rel="apple-touch-icon" href="./assets/icon-192.png">
-  <link rel="stylesheet" href="./styles.css?v=13.8">
+  <link rel="stylesheet" href="./styles.css?v=14.1">
   <title>Crypto Portfolio — Cloud</title>
 </head>
 <body>
@@ -18,7 +18,7 @@
     <header class="topbar">
       <div class="brand">
         <div class="mark">C<span>↗</span></div>
-        <div><strong>CRYPTO <span>PORTFOLIO</span></strong><small>PREMIUM STUDIO · V13.8</small></div>
+        <div><strong>CRYPTO <span>PORTFOLIO</span></strong><small>LOCAL AI · V14.1</small></div>
       </div>
       <div class="top-actions"><span class="top-status" id="status"><i></i> Αποσυνδεδεμένο</span><button id="refresh" class="icon-btn" type="button" aria-label="Ανανέωση τιμών" title="Ανανέωση τιμών"><span aria-hidden="true">↻</span></button><button id="lock" class="icon-btn" type="button" title="Έξοδος" aria-label="Έξοδος"><span aria-hidden="true">⏻</span></button></div>
     </header>
@@ -28,6 +28,7 @@
         <a href="#overview">◈  Επισκόπηση</a>
         <a href="#performance">↗  Γραφήματα</a>
         <a href="#asset-intelligence">◎  Ανάλυση</a>
+        <a href="#offline-advisor">◈  Advisor</a>
         <a href="#holdings">▤  Νομίσματα</a>
       </nav>
       <section class="headline" id="overview">
@@ -90,6 +91,50 @@
         <p id="insight-result-info" class="finance-note">Οι τιμές αγοράς μεταφέρονται από ιδιωτικό Cloud.</p>
         <div class="insight-foot"><strong id="insight-focus-title">PORTFOLIO  /  OVERVIEW</strong><span id="insight-note">Επίλεξε νόμισμα για μεμονωμένη ανάλυση.</span></div>
       </section>
+      <section class="panel advisor-panel" id="offline-advisor">
+        <div class="section-head"><div><p class="eyebrow">PORTFOLIO INTELLIGENCE  /  NO AI API</p><h2>Portfolio Intelligence · Strategy Lab</h2>
+          <p class="section-subtitle">Σύγκριση πραγματικών θέσεων, υποθετικών επιλογών και φωνητική συνομιλία · μόνο ανάγνωση</p></div></div>
+        <div class="advisor-form">
+          <label>Ενέργεια<select id="advisor-action"><option value="swap">Ανταλλαγή</option><option value="buy">Αγορά</option><option value="hold">Διακράτηση</option></select></label>
+          <label>Από<select id="advisor-source"></select></label>
+          <label>Προς<select id="advisor-target"></select></label>
+          <label>Ποσό USD<input id="advisor-amount" type="number" inputmode="decimal" value="50" min="0" step="any"></label>
+          <label>Fee %<input id="advisor-fee" type="number" inputmode="decimal" value="0.2" min="0" max="20" step="0.1"></label>
+          <label>Slippage %<input id="advisor-slippage" type="number" inputmode="decimal" value="0.3" min="0" max="20" step="0.1"></label>
+          <label>Stress %<input id="advisor-stress" type="number" inputmode="decimal" value="-20" min="-100" max="1000" step="1"></label>
+        </div>
+        <div class="advisor-pro-header"><div><strong>Επίλεξε τι θέλεις να βελτιώσεις</strong><small>Διαφανείς υπολογισμοί · σύγκριση χωρίς συναλλαγές</small></div>
+          <label for="advisor-goal">Κριτήριο <select id="advisor-goal"><option value="balanced">Ισορροπία</option><option value="diversify">Διασπορά</option><option value="resilience">Αντοχή σε υποθετικό σοκ</option><option value="fees">Ελάχιστα έξοδα</option></select></label></div>
+        <div class="advisor-quick-prompts" aria-label="Γρήγορα σενάρια">
+          <button type="button" data-advisor-prompt="Σύγκρινε τρεις επιλογές και εξήγησε τα υπέρ και τα κατά">Τρεις επιλογές</button>
+          <button type="button" data-advisor-prompt="Πώς να μειώσω τη συγκέντρωση;">Διασπορά</button>
+          <button type="button" data-advisor-prompt="Πώς επηρεάζεται το χαρτοφυλάκιο από μεγάλη πτώση;">Σενάριο πτώσης</button>
+          <button type="button" data-advisor-prompt="Να περιμένω ή να κάνω ανταλλαγή;">Αναμονή ή κίνηση</button>
+        </div>
+        <div class="advisor-actions"><button type="button" id="advisor-analyze">◈ Προτάσεις βελτίωσης</button><button type="button" id="advisor-simulate">▶ Προσομοίωση</button></div>
+        <div class="local-llm-control" id="local-llm-control" aria-label="Τοπικό γλωσσικό μοντέλο">
+          <div class="local-llm-head"><div><strong>◆ Local Language Model</strong><small>Πραγματική συνομιλία στη συσκευή · χωρίς πληρωμένο AI API</small></div><span class="local-llm-pill">ΠΡΟΑΙΡΕΤΙΚΟ</span></div>
+          <div class="local-llm-row"><label for="local-llm-model">Μοντέλο
+            <select id="local-llm-model"><option value="Qwen2.5-0.5B-Instruct-q4f16_1-MLC">Qwen 2.5 · 0.5B · περίπου 945 MB</option><option value="Qwen2.5-1.5B-Instruct-q4f16_1-MLC">Qwen 2.5 · 1.5B · περίπου 1.6 GB</option></select>
+          </label><button type="button" id="local-llm-load">⬇ Φόρτωση AI μοντέλου</button><button type="button" id="local-llm-unload" disabled>Διακοπή AI</button></div>
+          <p id="local-llm-status" role="status" aria-live="polite">Απενεργοποιημένο. Ενεργοποιείται μόνο με δική σου επιλογή και WebGPU.</p>
+          <p class="local-llm-privacy">Το μοντέλο κατεβαίνει την πρώτη φορά και παράγει απαντήσεις τοπικά. Λειτουργεί μέσα σε ξεχωριστό Web Worker χωρίς πρόσβαση στο GitHub token. Χρειάζεται Chrome/WebGPU και αρκετή μνήμη. Η ανάλυση σεναρίων παραμένει μαθηματική, όχι πρόβλεψη.</p>
+          <div id="local-llm-output" class="local-llm-output" hidden></div>
+        </div>
+        <div class="advisor-voice" role="group" aria-label="Φωνητική συνομιλία Advisor">
+          <button type="button" id="advisor-listen" title="Μίλησε στον Advisor">🎙 Μίλησε</button>
+          <button type="button" id="advisor-speak" title="Άκου τη σύντομη περίληψη">🔊 Άκου</button>
+          <button type="button" id="advisor-stop" title="Διακοπή ομιλίας">■ Σταμάτα</button>
+          <label class="advisor-speech-toggle"><input id="advisor-auto-voice" type="checkbox"> Αυτόματη φωνητική απάντηση</label>
+          <span id="advisor-voice-status" role="status" aria-live="polite">Φωνή προαιρετική · Μικρόφωνο μόνο με άδεια</span>
+        </div>
+        <label class="advisor-prompt-label" for="advisor-question">Ρώτησέ με με δικά σου λόγια</label>
+        <div class="advisor-question-row"><input id="advisor-question" type="text" autocomplete="off" maxlength="300" placeholder="π.χ. Πώς μπορώ να μειώσω τη συγκέντρωση;"><button type="button" id="advisor-ask">Ρώτησε</button></div>
+        <div id="advisor-conversation" class="advisor-chat-log" role="log" aria-label="Ιστορικό συνομιλίας Advisor" aria-live="polite"></div>
+        <div id="advisor-strategy-cards" class="advisor-strategy-cards" aria-label="Συγκριτικά σενάρια"></div>
+        <div id="advisor-result" class="advisor-result" aria-live="polite">Συνδέσου στο ιδιωτικό Cloud για εξατομικευμένη ανάλυση.</div>
+        <p class="brief-note">Local decision-support · Ο Advisor λειτουργεί με διαφανείς κανόνες, ενώ ένα πραγματικό τοπικό γλωσσικό μοντέλο ενεργοποιείται προαιρετικά σε συμβατές συσκευές. Δεν απαιτείται πληρωμένο AI API. Η σύγκριση εξετάζει συγκεκριμένα κριτήρια, όχι μελλοντικές αποδόσεις. Δεν αποστέλλονται εντολές συναλλαγών.</p>
+      </section>
       <section class="panel coins-panel" id="holdings">
         <div class="section-head coins-head"><div><p class="eyebrow">LIVE HOLDINGS  /  ASSET ALLOCATION</p><h2>Τα νομίσματά μου <span id="small-count" class="count">—</span></h2></div><div class="table-controls"><input id="search" type="search" placeholder="Αναζήτηση coin" aria-label="Αναζήτηση νομίσματος" autocomplete="off"><select id="sort" aria-label="Ταξινόμηση"><option value="value">Αξία ↓</option><option value="dayup">24h άνοδος ↓</option><option value="daydown">24h πτώση ↑</option><option value="name">Αλφαβητικά</option></select></div></div>
         <div class="desktop-table"><div class="table-titles"><span>ΝΟΜΙΣΜΑ</span><span>ΠΟΣΟΤΗΤΑ</span><span>ΤΙΜΗ</span><span>ΑΞΙΑ</span><span>24H</span><span>ΚΑΤΑΝΟΜΗ</span></div><div id="coins-desktop"></div></div>
@@ -98,7 +143,7 @@
       <footer><div><i class="live-dot"></i> Ιδιωτικά δεδομένα · Read-only από GitHub</div><div id="footer-update">—</div></footer>
     </main>
     <nav id="mobile-dock" class="mobile-dock" aria-label="Πλοήγηση εφαρμογής" hidden>
-      <a href="#overview"><span>◈</span>Αρχική</a><a href="#performance"><span>⌁</span>Γράφημα</a><a href="#asset-intelligence"><span>◎</span>Ανάλυση</a><a href="#holdings"><span>▤</span>Coins</a>
+      <a href="#overview"><span>◈</span>Αρχική</a><a href="#performance"><span>⌁</span>Γράφημα</a><a href="#asset-intelligence"><span>◎</span>Ανάλυση</a><a href="#offline-advisor"><span>◈</span>Advisor</a><a href="#holdings"><span>▤</span>Coins</a>
     </nav>
 
     <section id="login-screen" class="login-screen">
@@ -112,6 +157,8 @@
       <div class="login-art"><div class="art-grid"></div><div class="art-words"><p>ALWAYS CONNECTED</p><h2>YOUR ASSETS.<br><span>YOUR CONTROL.</span></h2><small>LIVE CLOUD SNAPSHOT · 24/7 ACCESS</small></div></div>
     </section>
   </div>
-  <script src="./app.js?v=13.8" defer></script>
+  <script src="./advisor_intelligence.js?v=14.1" defer></script>
+  <script src="./app.js?v=14.1" defer></script>
+  <script src="./llm_bridge.js?v=14.1" defer></script>
 </body>
 </html>
