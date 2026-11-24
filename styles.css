@@ -172,3 +172,56 @@ footer{padding-top:19px}
 
 /* Separate private positions freshness from market quote freshness. */
 .holdings-sync-status{font-size:11px;color:#9edbd3;margin-top:6px;line-height:1.4;overflow-wrap:anywhere}
+
+/* Offline Advisor Studio: responsive, readable controls and privacy-safe text output. */
+.advisor-panel{margin-top:16px}
+.advisor-form{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-top:17px}
+.advisor-form label{display:flex;flex-direction:column;gap:6px;color:#abbdd5;font-size:12px;font-weight:650}
+.advisor-form input,.advisor-form select{width:100%;min-width:0;background:#111f35;color:#f1f6ff;border:1px solid #425776;border-radius:9px;padding:12px;font-size:15px;box-sizing:border-box}
+.advisor-actions{display:flex;flex-wrap:wrap;gap:9px;margin:17px 0}
+.advisor-actions button{border:1px solid #587ca9;background:#1b3761;color:#f5f9ff;border-radius:10px;font-size:14px;font-weight:700;padding:12px 17px;cursor:pointer;min-height:43px}
+.advisor-actions button:first-child{background:#4269cf}
+.advisor-result{white-space:pre-wrap;overflow-wrap:anywhere;background:#101d31;border:1px solid #334963;border-radius:12px;color:#dceaf8;padding:15px;line-height:1.7;font:13px/1.7 ui-monospace,SFMono-Regular,Consolas,monospace;min-height:110px}
+@media(max-width:750px){.advisor-form{grid-template-columns:repeat(2,minmax(0,1fr))}.advisor-actions button{flex:1}}
+@media(max-width:360px){.advisor-form{grid-template-columns:repeat(2,minmax(0,1fr))}.advisor-form input,.advisor-form select{font-size:14px;padding:9px}}
+
+/* Advisor voice — spacious touch targets; zero impact on portfolio layout */
+.advisor-voice{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin:12px 0}
+.advisor-voice button,.advisor-question-row button{min-height:42px;padding:9px 15px;border:1px solid #446287;border-radius:9px;background:#243755;color:#f4f8ff;font:inherit;cursor:pointer}
+.advisor-voice button:focus-visible,.advisor-question-row button:focus-visible{outline:3px solid #75b9ff}
+.advisor-voice button[disabled]{opacity:.45;cursor:not-allowed}
+.advisor-speech-toggle{display:flex;align-items:center;gap:5px;font-size:.87rem;color:#dce5f5}
+#advisor-voice-status{font-size:.83rem;color:#b7c8de}
+.advisor-prompt-label{display:block;font-size:.9rem;margin:11px 0 6px;color:#dce5f5}
+.advisor-question-row{display:flex;gap:8px;align-items:stretch;margin-bottom:12px}
+.advisor-question-row input{min-width:0;flex:1;padding:11px;border:1px solid #43607c;background:#101e34;border-radius:9px;color:white;font:inherit}
+@media(max-width:450px){.advisor-question-row{flex-wrap:wrap}.advisor-question-row button{width:100%}}
+
+/* 14.0 — Strategy Lab. More space for explanations, no wasted card chrome. */
+.advisor-panel{scroll-margin-top:75px;min-width:0}
+.advisor-pro-header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;padding:15px 17px;margin-top:13px;background:linear-gradient(110deg,rgba(46,79,134,.35),rgba(21,39,66,.65));border:1px solid #3a5c82;border-radius:13px}
+.advisor-pro-header>div{display:grid;gap:5px}.advisor-pro-header strong{font-size:16px;color:#f2f7ff}.advisor-pro-header small{font-size:12px;color:#aec4dd}
+.advisor-pro-header label{display:grid;gap:5px;color:#aac5e2;font-size:12px;min-width:174px}
+.advisor-pro-header select{background:#12223a;color:#f6faff;padding:10px;border:1px solid #507097;border-radius:9px;font:inherit}
+.advisor-quick-prompts{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 3px}
+.advisor-quick-prompts button{background:#162c49;border:1px solid #43658b;color:#d9eaff;border-radius:999px;padding:10px 13px;font:600 13px/1.2 inherit;cursor:pointer}
+.advisor-quick-prompts button:hover{border-color:#86bfff;background:#24456b}
+.advisor-chat-log{min-height:20px;max-height:320px;overflow-y:auto;display:flex;flex-direction:column;gap:10px;margin:8px 0 12px;scrollbar-width:thin}
+.advisor-chat-message{max-width:93%;padding:12px 15px;border-radius:14px;background:#132640;border:1px solid #344b68;color:#e7f2ff;line-height:1.6;font-size:14px;overflow-wrap:anywhere;white-space:pre-wrap}
+.advisor-chat-message.user{align-self:flex-end;background:#284b78;border-color:#4a75ac}
+.advisor-chat-message.assistant{align-self:flex-start;background:#13283e}
+.advisor-chat-message strong{display:block;color:#8bcaff;font-size:11px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px}
+.advisor-strategy-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin:10px 0}
+.advisor-strategy-card{display:flex;flex-direction:column;gap:6px;padding:14px 13px;background:#152b42;border:1px solid #3d5877;border-radius:12px;min-width:0}
+.advisor-strategy-card strong{font-size:14px;color:#f1f7ff;overflow-wrap:anywhere}
+.advisor-strategy-card small{color:#9bd1ff;font-size:12px;line-height:1.5}
+.advisor-strategy-card span{color:#adc0d5;font-size:12px;line-height:1.4}
+.advisor-result{min-height:70px;max-height:480px;overflow-y:auto;font:14px/1.8 "Segoe UI",system-ui,sans-serif;white-space:pre-wrap;overflow-wrap:anywhere;padding:18px;border-color:#3a5676}
+@media(max-width:700px){.advisor-strategy-cards{grid-template-columns:1fr}.advisor-chat-message{max-width:98%}.advisor-result{font-size:14px;padding:14px}.advisor-pro-header{padding:12px}}
+@media(prefers-reduced-motion:reduce){.advisor-panel *{scroll-behavior:auto!important;transition:none!important}}
+
+/* Optional isolated on-device language model. Never overlaps primary controls. */
+.local-llm-control{margin:16px 0 12px;padding:16px;border:1px solid #315b83;background:linear-gradient(135deg,#14243b,#121c32);border-radius:16px;min-width:0}
+.local-llm-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}.local-llm-head strong{color:#e6f3ff;font-size:1.05rem}.local-llm-head small{display:block;color:#b1c9dc;font-size:.78rem;margin-top:4px}.local-llm-pill{border:1px solid #387da2;border-radius:100px;padding:4px 9px;color:#a2cffa;font-size:.7rem}
+.local-llm-row{display:flex;align-items:end;gap:9px;flex-wrap:wrap;margin-top:13px}.local-llm-row label{flex:1 1 190px;color:#c5ddf0;font-size:.85rem}.local-llm-row select{display:block;width:100%;max-width:100%;background:#0d1729;color:#fff;border:1px solid #456588;border-radius:9px;padding:10px 8px;margin-top:5px}.local-llm-row button{background:#2164b3;color:white;border:0;border-radius:10px;padding:11px 12px;cursor:pointer;min-height:42px}.local-llm-row button:disabled{opacity:.45;cursor:default}.local-llm-privacy{color:#a9bbd0;font-size:.78rem;line-height:1.5;margin:9px 0 0}.local-llm-control #local-llm-status{font-size:.86rem;color:#8ed2ef;margin:13px 0 0}.local-llm-output{margin:12px 0 0;padding:14px;background:#0a1827;border:1px solid #3c688e;border-radius:12px;color:#e6f2ff;line-height:1.65;white-space:pre-wrap;overflow-wrap:anywhere;max-height:360px;overflow-y:auto}
+@media(max-width:480px){.local-llm-control{padding:12px;margin:12px 0}.local-llm-row button{flex:1 1 125px}}
