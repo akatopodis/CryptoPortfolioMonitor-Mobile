@@ -581,26 +581,35 @@ function advisorWrite(lines){
 // Previous basic forms remain available, but their results now use the same
 // guarded analytical engine as the natural-language conversation.
 let advisorLastSpoken='';
-const advisorConversation=[];
+let advisorChatTurn=0;
 let advisorPreviousQuestion='';
 function advisorShowAnswer(answer, question=''){
-  const response=typeof answer==='string'?{text:answer,spoken:answer,cards:[]}:answer;
+  const response=typeof answer==='string'?{text:answer,spoken:answer,cards:[]}: {...answer};
   advisorLastSpoken=String(response.spoken||'');
-  // Provenance visible in the written report; never manufacture a live quote.
-  if(state.marketAt===0){
+  const analysis=!['social','unknown'].includes(response.intent);
+  if(analysis&&state.marketAt===0){
     response.text+='\n\nΠηγή: τελευταίο διαθέσιμο cloud snapshot, όχι επιβεβαιωμένη ζωντανή τιμή.';
-  }else if(Date.now()-state.marketAt>20*60*1000){
+  }else if(analysis&&Date.now()-state.marketAt>20*60*1000){
     response.text+='\n\nΠροσοχή: οι διαθέσιμες τιμές είναι παλιότερες από 20 λεπτά.';
   }
-  if(question)advisorPreviousQuestion=question;
-  advisorWrite([response.text]);
+  if(question&&analysis)advisorPreviousQuestion=question;
+  const report=document.getElementById('advisor-report-container');
+  if(report){report.hidden=!analysis;report.open=false;}
+  advisorWrite([analysis?response.text:'']);
   const chat=document.getElementById('advisor-conversation');
   if(chat){
-    if(question){const msg=document.createElement('div');msg.className='advisor-chat-message user';msg.textContent=question;chat.append(msg);}
+    const empty=chat.querySelector('.advisor-empty');if(empty)empty.remove();
+    if(question){
+      const msg=document.createElement('div');msg.className='advisor-chat-message user';
+      const who=document.createElement('strong');who.textContent='Εσύ';
+      const words=document.createElement('span');words.textContent=question;
+      msg.append(who,words);chat.append(msg);
+    }
     const reply=document.createElement('div');reply.className='advisor-chat-message assistant';
-    const label=document.createElement('strong');label.textContent='Advisor · Independent analysis';reply.append(label);
-    const body=document.createElement('div');body.textContent=String(response.spoken||response.text||'');reply.append(body);chat.append(reply);
-    while(chat.children.length>12)chat.firstElementChild.remove();
+    const label=document.createElement('strong');label.textContent='AI Advisor';reply.append(label);
+    const body=document.createElement('div');body.textContent=String(response.text||response.spoken||'');
+    reply.append(body);chat.append(reply);
+    while(chat.children.length>40)chat.firstElementChild.remove();
     chat.scrollTop=chat.scrollHeight;
   }
   const cards=document.getElementById('advisor-strategy-cards');
@@ -612,7 +621,35 @@ function advisorShowAnswer(answer, question=''){
     card.append(heading,detail,note);cards.append(card);
   }}
 }
+function advisorClearConversation(){
+  advisorChatTurn++;
+  advisorPreviousQuestion='';advisorLastSpoken='';
+  window.CPMMobileLLM?.cancelPending?.();
+  if('speechSynthesis' in window)window.speechSynthesis.cancel();
+  if(advisorActiveRecognition){try{advisorActiveRecognition.abort();}catch(_){}advisorActiveRecognition=null;}
+  const chat=document.getElementById('advisor-conversation');
+  if(chat){chat.replaceChildren();const empty=document.createElement('p');
+    empty.className='advisor-empty';empty.textContent='Νέα συνομιλία. Τι θα ήθελες να συζητήσουμε;';chat.append(empty);}
+  const report=document.getElementById('advisor-report-container');if(report){report.hidden=true;report.open=false;}
+  const output=document.getElementById('advisor-result');if(output)output.textContent='';
+  const cards=document.getElementById('advisor-strategy-cards');if(cards)cards.replaceChildren();
+  const local=document.getElementById('local-llm-output');if(local){local.hidden=true;local.textContent='';}
+  if(advisorQuestion)advisorQuestion.value='';
+  if(advisorVoiceListen)advisorVoiceListen.disabled=false;
+  if(advisorVoiceStatus)advisorVoiceStatus.textContent='Νέα συνομιλία · χωρίς αλλαγές στο χαρτοφυλάκιο.';
+}
+function advisorBeforeQuestion(){
+  advisorChatTurn++;advisorLastSpoken='';
+  window.CPMMobileLLM?.cancelPending?.();
+  const local=document.getElementById('local-llm-output');if(local){local.hidden=true;local.textContent='';}
+  const report=document.getElementById('advisor-report-container');if(report){report.hidden=true;report.open=false;}
+  const cards=document.getElementById('advisor-strategy-cards');if(cards)cards.replaceChildren();
+  const output=document.getElementById('advisor-result');if(output)output.textContent='';
+}
+document.getElementById('advisor-clear')?.addEventListener('click',advisorClearConversation);
+
 function advisorAdvanced(query,params=advisorParams()){
+  advisorBeforeQuestion();
   advisorRenderContext();
   const list=advisorPositions();
   // Overrides are assumptions, not permanent data or trade instructions.
@@ -621,6 +658,7 @@ function advisorAdvanced(query,params=advisorParams()){
   advisorVoiceStatus.textContent='Ανάλυση από πραγματικά διαθέσιμα δεδομένα · χωρίς εντολή συναλλαγής.';
 }
 function advisorSimulate(){
+  advisorBeforeQuestion();
   try{
     const p=advisorParams();const list=advisorPositions();
     if(!Number.isFinite(p.stress)||p.stress< -100||p.stress>1000)throw Error('Το Stress % πρέπει να είναι από -100 έως +1000.');
@@ -642,6 +680,7 @@ function advisorSimulate(){
   }catch(e){advisorShowAnswer({text:'Δεν έγινε προσομοίωση: '+e.message,spoken:'Η προσομοίωση δεν ολοκληρώθηκε.',cards:[]});}
 }
 function advisorAnalyze(){
+  advisorBeforeQuestion();
   try{
     const goal=document.getElementById('advisor-goal')?.value||'balanced';
     const prompts={balanced:'Σύγκρινε 3 επιλογές για καλύτερη ισορροπία',diversify:'Πώς να μειώσω τη συγκέντρωση;',
@@ -664,6 +703,7 @@ const advisorQuestion=document.getElementById('advisor-question');
 const advisorRecognizer=window.SpeechRecognition||window.webkitSpeechRecognition;
 let advisorActiveRecognition=null;
 let advisorSpeaking=false;
+const advisorVoiceLang=document.getElementById('advisor-voice-lang');
 function advisorSpeechSummary(){
  if(window.CPMMobileLLM?.spoken)return window.CPMMobileLLM.spoken;
  if(advisorLastSpoken)return advisorLastSpoken;
@@ -680,25 +720,36 @@ function advisorVoiceCancel(){
  advisorSpeaking=false;advisorVoiceStatus.textContent='Η φωνή σταμάτησε.';
  advisorVoiceListen.disabled=false;
 }
-function advisorVoiceSpeak(){
+function advisorComputerFallback(){
+ // A factual spoken status; full analysis stays on screen. Never invent market claims.
+ const hasAnalysis=Boolean(advisorLastSpoken||(advisorDom['advisor-result'].textContent||'').length>150);
+ return hasAnalysis
+  ? 'Computer. Portfolio assessment complete. Current available data and transaction costs have been considered. Review the scenario comparison for details. No transaction has been executed.'
+  : 'Computer online. Portfolio intelligence is standing by. Ask your question to begin the assessment.';
+}
+function advisorSpeakText(text){
  if(!('speechSynthesis' in window)){advisorVoiceStatus.textContent='Η σύνθεση φωνής δεν υποστηρίζεται σε αυτόν τον browser.';return;}
  window.speechSynthesis.cancel();
- const spoken=advisorSpeechSummary();
- const message=new SpeechSynthesisUtterance(spoken);
- message.lang='el-GR';message.rate=.96;message.pitch=1;message.volume=1;
- const available=window.speechSynthesis.getVoices();
- const greek=available.filter(v=>v.lang.toLowerCase().startsWith('el'));
- const chosen=greek.find(v=>/natural|neural|online/i.test(v.name))||greek[0];
+ const mode=advisorVoiceLang?.value||'en-US';
+ const spoken=(mode==='el-GR') ? (text&&/[Α-Ωα-ωά-ώ]{5}/.test(text)?text:advisorSpeechSummary()) :
+    (text&&/[A-Za-z]{3}/.test(text)&&!/[Α-Ωα-ωά-ώ]{5}/.test(text)?text:advisorComputerFallback());
+ const message=new SpeechSynthesisUtterance(spoken.slice(0,440));
+ message.lang=mode;message.rate=.91;message.pitch=1.02;message.volume=1;
+ const voices=window.speechSynthesis.getVoices();
+ const available=voices.filter(v=>(v.lang||'').toLowerCase().startsWith(mode.substring(0,2).toLowerCase()));
+ const chosen=available.find(v=>/aria|jenny|ava|samantha|zira|natural|neural|female/i.test(v.name))||available[0];
  if(chosen)message.voice=chosen;
- message.onstart=()=>{advisorSpeaking=true;advisorVoiceStatus.textContent='Ο Advisor μιλά…';};
- message.onend=()=>{advisorSpeaking=false;advisorVoiceStatus.textContent='Έτοιμος για νέα ερώτηση.';};
- message.onerror=()=>{advisorSpeaking=false;advisorVoiceStatus.textContent='Δεν ήταν δυνατή η εκφώνηση.';};
+ message.onstart=()=>{advisorSpeaking=true;advisorVoiceStatus.textContent='Computer speaking…';};
+ message.onend=()=>{advisorSpeaking=false;advisorVoiceStatus.textContent='Computer ready.';};
+ message.onerror=()=>{advisorSpeaking=false;advisorVoiceStatus.textContent='Η εκφώνηση δεν υποστηρίζεται από την ενεργή φωνή.';};
  window.speechSynthesis.speak(message);
 }
+function advisorVoiceSpeak(){advisorSpeakText(window.CPMMobileLLM?.spoken||'');}
+window.CPMAdvisorSpeakText=advisorSpeakText;
 function advisorAskNatural(){
  const raw=advisorQuestion.value.trim();
- window.CPMMobileLLM?.reset();
- if(!raw){advisorVoiceStatus.textContent='Γράψε ή πες τι θέλεις να συγκρίνω.';return;}
+ if(!raw){advisorVoiceStatus.textContent='Γράψε ή πες τι θέλεις να συζητήσουμε.';return;}
+ advisorBeforeQuestion();
  try{
    let actual=raw;
    // Follow-up amounts keep the last explicit simulated pair, in this session
@@ -714,13 +765,18 @@ function advisorAskNatural(){
    }
    const answer=window.CPMAdvisor.explain(advisorPositions(),actual,advisorParams());
    advisorShowAnswer(answer,raw);
-   window.CPMMobileLLM?.explain(raw,answer.text);
-   advisorVoiceStatus.textContent='Ανάλυση με πραγματικές διαθέσιμες τιμές · χωρίς συναλλαγή.';
+   if(!['social','unknown'].includes(answer.intent))window.CPMMobileLLM?.explain(raw,answer.text);
+   advisorVoiceStatus.textContent=['social','unknown'].includes(answer.intent)?'Ο Advisor απάντησε στη συνομιλία.':'Ανάλυση με διαθέσιμες τιμές · χωρίς συναλλαγή.';
  }catch(e){advisorShowAnswer({text:'Χρειάζομαι πιο συγκεκριμένα ή πρόσφατα δεδομένα: '+e.message,
    spoken:'Χρειάζομαι πιο συγκεκριμένα στοιχεία για να μην κάνω υποθέσεις.',cards:[]},raw);}
 }
 function advisorVoiceStart(){
- if(!advisorRecognizer){advisorVoiceStatus.textContent='Το μικρόφωνο ομιλίας δεν υποστηρίζεται εδώ. Μπορείς να πληκτρολογήσεις.';return;}
+ if(window.CPMAndroidVoice){
+   advisorVoiceStatus.textContent='Ενεργοποίηση μικροφώνου Android…';
+   try{window.CPMAndroidVoice.startSpeechRecognition();}catch(e){advisorVoiceStatus.textContent='Το μικρόφωνο Android δεν ξεκίνησε.';}
+   return;
+ }
+ if(!advisorRecognizer){advisorVoiceStatus.textContent='Η αναγνώριση ομιλίας δεν υποστηρίζεται σε αυτό το πρόγραμμα. Μπορείς να πληκτρολογήσεις.';return;}
  if(!window.isSecureContext){advisorVoiceStatus.textContent='Η αναγνώριση ομιλίας απαιτεί HTTPS.';return;}
  if(advisorActiveRecognition)return;
  if('speechSynthesis' in window)window.speechSynthesis.cancel();
@@ -733,11 +789,18 @@ function advisorVoiceStart(){
  recognizer.onend=()=>{advisorActiveRecognition=null;advisorVoiceListen.disabled=false;};
  try{recognizer.start();}catch(e){advisorActiveRecognition=null;advisorVoiceListen.disabled=false;advisorVoiceStatus.textContent='Δεν ήταν δυνατή η ενεργοποίηση μικροφώνου.';}
 }
+// Only the bundled Android native Activity can call this callback.
+window.CPMVoiceTranscript=function(text){
+  if(typeof text!=='string'||!text.trim()){
+    advisorVoiceStatus.textContent='Δεν αναγνωρίστηκε ομιλία. Δοκίμασε ξανά.';return;
+  }
+  advisorQuestion.value=text.trim().slice(0,300);advisorAskNatural();
+};
 advisorVoiceListen.addEventListener('click',advisorVoiceStart);
 advisorVoiceSpeakButton.addEventListener('click',advisorVoiceSpeak);
 advisorVoiceStop.addEventListener('click',advisorVoiceCancel);
 document.getElementById('advisor-ask').addEventListener('click',advisorAskNatural);
-advisorQuestion.addEventListener('keydown',e=>{if(e.key==='Enter')advisorAskNatural();});
+advisorQuestion.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.isComposing){e.preventDefault();advisorAskNatural();}});
 document.querySelectorAll('[data-advisor-prompt]').forEach(btn=>btn.addEventListener('click',()=>{
  advisorQuestion.value=btn.dataset.advisorPrompt;advisorAskNatural();
  document.getElementById('advisor-conversation')?.scrollIntoView({behavior:'smooth',block:'nearest'});
@@ -745,7 +808,7 @@ document.querySelectorAll('[data-advisor-prompt]').forEach(btn=>btn.addEventList
 
 
 
-function logout(){sessionStorage.removeItem(SESSION_KEY);localStorage.removeItem(VAULT_KEY);state.token='';state.snapshot=null;state.cloudSnapshot=null;state.marketAt=0;state.marketRetryAt=0;state.marketError='';state.costBasis=null;dom.dashboard.hidden=true;dom['mobile-dock'].hidden=true;dom['login-screen'].hidden=false;dom.token.value='';dom['unlock-pass'].value='';dom['remember-pass'].value='';dom.remember.checked=false;dom['remember-pass-wrap'].hidden=true;dom['setup-section'].hidden=false;dom['unlock-section'].hidden=true;clearError();setStatus('','Αποσυνδεδεμένο');}
+function logout(){advisorClearConversation();sessionStorage.removeItem(SESSION_KEY);localStorage.removeItem(VAULT_KEY);state.token='';state.snapshot=null;state.cloudSnapshot=null;state.marketAt=0;state.marketRetryAt=0;state.marketError='';state.costBasis=null;dom.dashboard.hidden=true;dom['mobile-dock'].hidden=true;dom['login-screen'].hidden=false;dom.token.value='';dom['unlock-pass'].value='';dom['remember-pass'].value='';dom.remember.checked=false;dom['remember-pass-wrap'].hidden=true;dom['setup-section'].hidden=false;dom['unlock-section'].hidden=true;clearError();setStatus('','Αποσυνδεδεμένο');}
 dom.connect.addEventListener('click',()=>{const token=dom.token.value.trim();if(!token){showError('Συμπλήρωσε το GitHub token.');return;}const password=dom.remember.checked?dom['remember-pass'].value:'';if(dom.remember.checked&&password.length<8){showError('Ο κωδικός αποθήκευσης πρέπει να έχει τουλάχιστον 8 χαρακτήρες.');return;}beginSession(token,password);});
 dom.token.addEventListener('keydown',e=>{if(e.key==='Enter')dom.connect.click()});
 dom.remember.addEventListener('change',()=>dom['remember-pass-wrap'].hidden=!dom.remember.checked);
