@@ -80,10 +80,31 @@
   return {baseline:base, goal, holdsAndSwaps:rank(reduced).slice(0,4),cashBuys:rank(buys).slice(0,3),candidates:candidates.length};
  }
  const normalize=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[’']/g,'');
+ function conversationReply(question){
+  const q=normalize(question).replace(/[.!?…\s]+/g,' ').trim();
+  if(/^(?:kalimera|kalispera|kalinyxta|geia(?: sou| sas)?|yassou|yasou|hello|hi|hey|good morning|good evening|καλημερα|καλησπερα|καληνυχτα|γεια(?: σου| σας)?|γεια χαρα)$/.test(q)){
+   return ['kalimera','good morning','καλημερα'].includes(q)?'Καλημέρα! Τι θα ήθελες να δούμε σήμερα;':'Γεια σου! Τι θα ήθελες να συζητήσουμε;';
+  }
+  if(/^(?:efharisto|euxaristo|thanks|thank you|thx|ευχαριστω|να σαι καλα|μπραβο)$/.test(q))return 'Παρακαλώ! Είμαι εδώ αν χρειαστείς κάτι άλλο.';
+  if(/^(?:help|voitheia|βοηθεια|τι μπορεις να κανεις|what can you do)$/.test(q))return 'Μπορώ να εμφανίσω την αποτίμηση, να συγκρίνω διακράτηση και υποθετικές ανταλλαγές ή να σου εξηγήσω τις επιλογές. Τι θέλεις να δούμε;';
+  if(/^(?:ti kaneis|τι κανεις|how are you|πως παει|pos paei)$/.test(q))return 'Όλα καλά εδώ! Πες μου τι σε απασχολεί.';
+  return null;
+ }
+ function classifyIntent(q){
+  if(/swap|ανταλλ|metatro|allag|antall/.test(q))return 'swap';
+  if(/αγορ|agor|buy|αγορασ|προσθε/.test(q))return 'buy';
+  if(/hold|κρατ|diakrat|perimen|αναμον|περιμεν|wait|κανω τιποτα/.test(q))return 'hold';
+  if(/risk|ρισκ|στρες|stress|πτωση|anevei|ανεβ/.test(q))return 'risk';
+  if(/κοστος|kost|fees|προμηθ/.test(q))return 'fees';
+  if(/συγκεντρ|συμμετοχ|διασπορ|divers|allocation|katano|συγκριν|συγκρισ/.test(q))return 'diversify';
+  if(/χαρτοφυλακ|portfolio|αποτιμησ|τι εχουμε|τι εχω|συνολικ.{0,12}αξι|overview|holdings|coins/.test(q))return 'overview';
+  if(/compare|σενάρι|senari|καλυτερ|best|προτειν|βελτιστ|veltist|προτασ|επιλογ|strategy|στρατηγ/.test(q))return 'compare';
+  return 'unknown';
+ }
  function understand(question,positions,prior={}){
   const q=normalize(question);const symbols=validate(positions).map(p=>p.symbol);
   const mentioned=symbols.filter(sym=>new RegExp('(^|[^a-z0-9])'+sym.toLowerCase()+'([^a-z0-9]|$)','i').test(q));
-  const intent=/(swap|ανταλλ|metatro|allag|antall)/i.test(q)?'swap':/(αγορ|agor|buy|αγορασ|προσθε)/i.test(q)?'buy':/(hold|κρατ|diakrat|perimen|αναμον|περιμεν|wait|κανω τιποτα)/i.test(q)?'hold':/(compare|συγκριν|συγκρισ|σενάρι|senari|καλυτερ|best|προτείν|προτειν|βέλτιστ|veltist)/i.test(q)?'compare':/(risk|ρίσκ|ρισκ|στρες|stress|πτωση|εάν πέσ|anevei|ανεβ)/i.test(q)?'risk':/(κόστος|kost|fees|προμηθ)/i.test(q)?'fees':/(συγκεντρ|συμμετοχ|διασπορ|divers|allocation|katano)/i.test(q)?'diversify':'overview';
+  const intent=classifyIntent(q);
   let source='',target='';
   const expr=mentioned.join('|');if(expr){
     const mFrom=q.match(new RegExp('(?:απο|apo|from)\\s+(?:το\\s+)?('+expr+')','i'));
@@ -102,6 +123,13 @@
   return {intent,source,target,amount:amount&&finite(amount)?amount:null,goal,mentioned,normalized:q};
  }
  function explain(positions,query,options={}){
+  const greeting=conversationReply(query);
+  if(greeting!==null)return {text:greeting,spoken:greeting,cards:[],intent:'social'};
+  const normalized=normalize(query),intent=classifyIntent(normalized);
+  if(intent==='unknown'){
+   const answer='Δεν κατάλαβα ότι ζήτησες ανάλυση ή ανταλλαγή, οπότε δεν θα προτείνω συναλλαγή. Πες μου τι θέλεις να μάθεις, για παράδειγμα «Ποια είναι η αποτίμηση;» ή «Σύγκρινε επιλογές».';
+   return {text:answer,spoken:answer,cards:[],intent:'unknown'};
+  }
   const p=validate(positions),m=metrics(p),under=understand(query,p),defaultAmount=finite(options.amount)&&options.amount>0?options.amount:50;
   const fee=finite(options.fee)?options.fee:.2,slippage=finite(options.slippage)?options.slippage:.3;
   const amount=under.amount||defaultAmount;let result,short,detail=[],scenarioResult=null;
@@ -109,6 +137,9 @@
   const custom=(under.intent==='buy'||under.intent==='swap');
   if(custom){
    const source=under.source||options.source||'',target=under.target||options.target||'';
+   if(under.intent==='swap'&&under.mentioned.length<2){
+     return {text:'Για ανταλλαγή χρειάζομαι και τα δύο νομίσματα (π.χ. «Αντάλλαξε 50 USD από HBAR σε AVAX»).',spoken:'Πες μου ποιο νόμισμα δίνεις και ποιο λαμβάνεις.',cards:[],intent:'swap'};
+   }
    if(under.mentioned.length===1&&under.intent==='swap'&&!under.source){
     result=`Για να συγκρίνω αξιόπιστα αυτή την ανταλλαγή, πες μου και το δεύτερο νόμισμα: ποιο δίνεις και ποιο αγοράζεις. Για παράδειγμα: «Αντάλλαξε 50 USD από HBAR σε AVAX».`;
     return {text:result,spoken:'Χρειάζομαι και το δεύτερο νόμισμα για να μη μαντέψω.',cards:[],intent:under.intent};
@@ -117,6 +148,9 @@
    const s=scenarioResult,act=under.intent==='buy'?`αγορά ${target} με νέο κεφάλαιο`:`ανταλλαγή ${source} σε ${target}`;
    short=`Για ${act} ύψους ${cash(s.amount)}, η επιβάρυνση υπολογίζεται σε ${cash(s.cost)}. Η συγκέντρωση ${s.after.hhi<s.before.hhi-.00001?'μειώνεται':s.after.hhi>s.before.hhi+.00001?'αυξάνεται':'ουσιαστικά δεν αλλάζει'}.`;
    result=`${short}\n\n${bullet}Μεγαλύτερη θέση: ${fmt(s.before.largest*100,1)}% πριν · ${fmt(s.after.largest*100,1)}% μετά.\n${bullet}Top 3: ${fmt(s.before.top3*100,1)}% → ${fmt(s.after.top3*100,1)}%.\n${bullet}Σενάριο γενικής πτώσης 25%: ${cash(s.outcomes.broad_down)}.\n${bullet}Σενάριο πτώσης 45% μόνο της σημερινής μεγαλύτερης θέσης: ${cash(s.outcomes.single_down)}.\n\nΗ αγορά προσθέτει νέα κεφάλαια· η ανταλλαγή όχι. Τα σενάρια είναι υποθέσεις και όχι εκτιμήσεις μελλοντικής τιμής. Δεν έγινε συναλλαγή.`;
+  }else if(under.intent==='overview'){
+   short=`Με τις διαθέσιμες τιμές, η συνολική αποτίμηση είναι ${cash(m.total)} σε ${p.length} νομίσματα.`;
+   result=`${short}\n\nΜεγαλύτερη θέση: ${m.w[0].symbol} (${fmt(m.largest*100,1)}%).\nΟι τρεις μεγαλύτερες θέσεις αντιστοιχούν στο ${fmt(m.top3*100,1)}%.\n\nΜπορώ να συγκρίνω επιλογές μόνο αν μου το ζητήσεις.`;
   }else if(under.intent==='hold'){
    const s=simulate(p,{action:'hold'});short='Η διακράτηση δεν προσθέτει κόστη συναλλαγής ούτε αλλάζει τις θέσεις σου.';
    result=`${short}\n\nΗ μεγαλύτερη θέση είναι ${m.w[0].symbol} (${fmt(m.largest*100,1)}%). Σε υποθετική γενική πτώση 25%, η αποτίμηση θα ήταν ${cash(s.outcomes.broad_down)}. Η αναμονή αποφεύγει άσκοπες προμήθειες, δεν αφαιρεί τον κίνδυνο της αγοράς.`;
@@ -138,5 +172,5 @@
   }
   return {text:result,spoken:short,cards:detail,intent:under.intent,scenarioResult};
  }
- root.CPMAdvisor=Object.freeze({validate,metrics,simulate,compare,understand,explain,normalize});
+ root.CPMAdvisor=Object.freeze({validate,metrics,simulate,compare,understand,explain,normalize,conversationReply,classifyIntent});
 })(typeof window!=='undefined'?window:globalThis);
